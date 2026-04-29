@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finance Pro Final</title>
+
+<script src="https://apis.google.com/js/api.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<style>
+body{
+margin:0;
+font-family:system-ui;
+background:#0a0f2c;
+color:white;
+}
+.topbar{
+display:flex;
+align-items:center;
+padding:14px;
+gap:10px;
+}
+.title{
+font-size:24px;
+font-weight:700;
+}
+button{
+border:none;
+padding:10px 16px;
+border-radius:12px;
+cursor:pointer;
+background:#1e2a5a;
+color:white;
+}
+.status{
+margin-left:auto;
+font-size:14px;
+opacity:.8;
+}
+.card{
+margin:16px;
+padding:20px;
+border-radius:20px;
+background:#1c255c;
+}
+.txn{
+display:flex;
+justify-content:space-between;
+padding:10px;
+border-bottom:1px solid #2a3575;
+}
+.income{color:#00e676;}
+.expense{color:#ff5252;}
+</style>
+</head>
+
+<body>
+
+<div class="topbar">
+<div class="title">Finance Pro</div>
+<button id="auth-btn">Connect Gmail</button>
+<div class="status" id="status">Booting…</div>
+</div>
+
+<div class="card">
+<div>Net Flow</div>
+<div id="net">₹0</div>
+</div>
+
+<div class="card">
+<div id="insights">
+Income ₹0<br>
+Expense ₹0<br>
+Transactions 0
+</div>
+</div>
+
+<div id="txns"></div>
+
+<script>
+
+const CLIENT_ID =
+"294448907552-42vl2af953es0vo0i44t9a0d5nbttg0b.apps.googleusercontent.com";
+
+const SCOPES =
+"https://www.googleapis.com/auth/gmail.readonly";
+
+let tokenClient;
+let accessToken=null;
+let transactions=[];
+
+function updateStatus(t){
+document.getElementById("status").innerText=t;
+}
+
+function updateUI(){
+
+let income=0;
+let expense=0;
+
+transactions.forEach(t=>{
+if(t.type==="income") income+=t.amount;
+else expense+=t.amount;
+});
+
+document.getElementById("net").innerText="₹"+(income-expense);
+
+document.getElementById("insights").innerHTML=
+"Income ₹"+income+"<br>"+
+"Expense ₹"+expense+"<br>"+
+"Transactions "+transactions.length;
+
+renderTxns();
+}
+
+function renderTxns(){
+
+let list=document.getElementById("txns");
+list.innerHTML="";
+
+transactions.slice(0,50).forEach(t=>{
+
+let div=document.createElement("div");
+div.className="txn";
+
+div.innerHTML=
+"<span>"+t.name+"</span>"+
+"<span class='"+(t.type==="income"?"income":"expense")+"'>₹"+t.amount+"</span>";
+
+list.appendChild(div);
+
+});
+
+}
+
+function detectAmount(text){
+
+let m=text.match(/₹?\s?([0-9,]+)/);
+
+if(m){
+return parseInt(m[1].replace(/,/g,""));
+}
+
+return 0;
+}
+
+function detectType(text){
+
+text=text.toUpperCase();
+
+if(
+text.includes("CREDIT")||
+text.includes("SALARY")||
+text.includes("REFUND")
+){
+return "income";
+}
+
+return "expense";
+}
+
+function detectName(text){
+
+let patterns=[
+/UPI\/(\w+)/,
+/TO ([A-Z ]+)/,
+/FROM ([A-Z ]+)/,
+/AT ([A-Z ]+)/
+];
+
+for(let p of patterns){
+
+let m=text.toUpperCase().match(p);
+
+if(m){
+return m[1].trim();
+}
+
+}
+
+return "Unknown";
+}
+
+function parseEmail(text){
+
+let amount=detectAmount(text);
+
+if(amount===0) return null;
+
+return{
+amount,
+type:detectType(text),
+name:detectName(text)
+};
+
+}
+
+function startAuth(){
+tokenClient.requestAccessToken();
+}
+
+function initToken(){
+
+tokenClient=
+google.accounts.oauth2.initTokenClient({
+
+client_id:CLIENT_ID,
+scope:SCOPES,
+
+callback:(resp)=>{
+
+accessToken=resp.access_token;
+
+updateStatus("Connected ✅");
+
+fetchEmails();
+
+}
+
+});
+
+}
+
+async function fetchEmails(){
+
+updateStatus("Scanning 90 days…");
+
+let res=
+await fetch(
+"https://gmail.googleapis.com/gmail/v1/users/me/messages?q=newer_than:90d",
+{
+headers:{
+Authorization:"Bearer "+accessToken
+}
+}
+);
+
+let data=await res.json();
+
+let msgs=data.messages||[];
+
+for(let m of msgs.slice(0,40)){
+await fetchMessage(m.id);
+}
+
+updateUI();
+
+updateStatus("Done ✅");
+
+}
+
+async function fetchMessage(id){
+
+let res=
+await fetch(
+"https://gmail.googleapis.com/gmail/v1/users/me/messages/"+id,
+{
+headers:{
+Authorization:"Bearer "+accessToken
+}
+}
+);
+
+let data=await res.json();
+
+let body=JSON.stringify(data);
+
+let txn=parseEmail(body);
+
+if(txn) transactions.push(txn);
+
+}
+
+window.onload=()=>{
+
+initToken();
+
+gapi.load("client",()=>{
+updateStatus("Auth Ready");
+});
+
+};
+
+document
+.getElementById("auth-btn")
+.onclick=startAuth;
+
+</script>
+
+</body>
+</html>
