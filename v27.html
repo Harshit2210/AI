@@ -11,7 +11,7 @@
 body{margin:0;font-family:sans-serif;background:#0b1437;color:white;}
 .top{display:flex;align-items:center;padding:15px;}
 .title{font-size:22px;font-weight:bold;}
-button{margin-left:10px;padding:8px 12px;border:none;border-radius:10px;background:#2d3d8b;color:white;}
+button{margin-left:10px;padding:8px 12px;border:none;border-radius:10px;background:#2d3d8b;color:white;cursor:pointer;}
 
 .card{margin:15px;padding:15px;border-radius:15px;background:#1b2a6b;}
 .txn{padding:12px;border-bottom:1px solid #2a3a7a;display:flex;justify-content:space-between;}
@@ -51,7 +51,14 @@ const CLIENT_ID="294448907552-42vl2af953es0vo0i44t9a0d5nbttg0b.apps.googleuserco
 let tokenClient, token;
 let txns=[];
 
-function status(s){document.getElementById("status").innerText=s;}
+/* FIXED ELEMENT REFERENCES */
+const list = document.getElementById("list");
+const net = document.getElementById("net");
+
+function status(s){
+document.getElementById("status").innerText=s;
+}
+
 function prog(d,t){
 document.getElementById("prog").innerText=d+"/"+t;
 document.getElementById("bar").style.width=(d/t*100)+"%";
@@ -59,12 +66,12 @@ document.getElementById("bar").style.width=(d/t*100)+"%";
 
 /* AUTH */
 function init(){
-tokenClient=google.accounts.oauth2.initTokenClient({
-client_id:CLIENT_ID,
-scope:"https://www.googleapis.com/auth/gmail.readonly",
-callback:(r)=>{
+tokenClient = google.accounts.oauth2.initTokenClient({
+client_id: CLIENT_ID,
+scope: "https://www.googleapis.com/auth/gmail.readonly",
+callback: (r)=>{
 if(r.error){status("Auth failed");return;}
-token=r.access_token;
+token = r.access_token;
 scan();
 }
 });
@@ -81,30 +88,28 @@ async function scan(){
 status("Scanning...");
 txns=[];
 
-let res=await fetch(
+let res = await fetch(
 "https://gmail.googleapis.com/gmail/v1/users/me/messages?q=from:alerts@axis.bank.in newer_than:90d",
 {headers:{Authorization:"Bearer "+token}}
 );
 
-let data=await res.json();
-let msgs=(data.messages||[]).slice(0,60);
+let data = await res.json();
+let msgs = (data.messages||[]).slice(0,60);
 
-let done=0;
+let done = 0;
 
 for(let m of msgs){
 
-let r=await fetch(
+let r = await fetch(
 "https://gmail.googleapis.com/gmail/v1/users/me/messages/"+m.id+"?format=metadata",
 {headers:{Authorization:"Bearer "+token}}
 );
 
-let d=await r.json();
+let d = await r.json();
 
-/* USE SNIPPET ONLY */
-let text=(d.snippet||"").toLowerCase();
+let text = d.snippet ? d.snippet.toLowerCase() : "";
 
-let txn=parse(text);
-
+let txn = parse(text);
 if(txn) txns.push(txn);
 
 done++;
@@ -112,7 +117,7 @@ prog(done,msgs.length);
 
 }
 
-/* fallback if nothing found */
+/* fallback */
 if(txns.length===0){
 status("Deep scan...");
 await deepScan(msgs);
@@ -123,50 +128,88 @@ status("Done");
 
 }
 
-/* DEEP SCAN (LIMITED) */
+/* DEEP SCAN (FIXED) */
 async function deepScan(msgs){
 
 for(let m of msgs.slice(0,25)){
 
-let r=await fetch(
-"https://gmail.googleapis.com/gmail/v1/users/me/messages/"+m.id,
+let r = await fetch(
+"https://gmail.googleapis.com/gmail/v1/users/me/messages/"+m.id+"?format=full",
 {headers:{Authorization:"Bearer "+token}}
 );
 
-let d=await r.json();
+let d = await r.json();
 
-let text=JSON.stringify(d).toLowerCase();
+let text = extractBody(d);
 
-let txn=parse(text);
-
+let txn = parse(text.toLowerCase());
 if(txn) txns.push(txn);
 
 }
 
 }
 
-/* PARSER (FIXED FOR AXIS FORMAT) */
+/* CLEAN BODY EXTRACTOR */
+function extractBody(msg){
+
+let body = "";
+
+function decode(data){
+return atob(data.replace(/-/g,'+').replace(/_/g,'/'));
+}
+
+function walk(parts){
+for(let p of parts){
+if(p.mimeType === "text/plain" && p.body?.data){
+body += decode(p.body.data);
+}
+if(p.parts) walk(p.parts);
+}
+}
+
+if(msg.payload?.parts){
+walk(msg.payload.parts);
+}else if(msg.payload?.body?.data){
+body = decode(msg.payload.body.data);
+}
+
+return sanitize(body);
+
+}
+
+/* SANITIZER */
+function sanitize(t){
+
+return t
+.replace(/content-type:.*/gi,'')
+.replace(/content-transfer-encoding:.*/gi,'')
+.replace(/content-disposition:.*/gi,'')
+.replace(/htmlfilename|headersname|quoted-printable/gi,'')
+.replace(/=\r?\n/g,'')
+.replace(/\s+/g,' ')
+.trim();
+
+}
+
+/* PARSER */
 function parse(t){
 
-/* debit example */
-let debit=t.match(/inr\s([\d,]+).*debited.*at\s\/?.*?\/([a-z0-9 ]+)/i);
-
-/* credit example */
-let credit=t.match(/inr\s([\d,]+).*credited.*upi.*\/([^\/]+)\//i);
+let debit = t.match(/inr\s([\d,]+).*debited.*at\s\/?.*?\/([a-z0-9 ]+)/i);
+let credit = t.match(/inr\s([\d,]+).*credited.*upi.*\/([^\/]+)\//i);
 
 if(debit){
 return {
-amount:num(debit[1]),
-type:"expense",
-name:clean(debit[2])
+amount: num(debit[1]),
+type: "expense",
+name: clean(debit[2])
 };
 }
 
 if(credit){
 return {
-amount:num(credit[1]),
-type:"income",
-name:clean(credit[2])
+amount: num(credit[1]),
+type: "income",
+name: clean(credit[2])
 };
 }
 
@@ -188,32 +231,32 @@ return n
 /* RENDER */
 function render(){
 
-let inc=0,exp=0;
-
-list.innerHTML="";
+let inc = 0, exp = 0;
+list.innerHTML = "";
 
 txns.forEach(t=>{
 
-if(t.type==="income") inc+=t.amount;
-else exp+=t.amount;
+if(t.type==="income") inc += t.amount;
+else exp += t.amount;
 
-let div=document.createElement("div");
-div.className="txn";
+let div = document.createElement("div");
+div.className = "txn";
 
-div.innerHTML=
-`<div class="name">${t.name}</div>
-<div class="${t.type==="income"?"green":"red"}">₹${t.amount}</div>`;
+div.innerHTML = `
+<div class="name">${t.name}</div>
+<div class="${t.type==="income"?"green":"red"}">₹${t.amount}</div>
+`;
 
 list.appendChild(div);
 
 });
 
-net.innerText="₹"+(inc-exp);
+net.innerText = "₹" + (inc - exp);
 
 }
 
 /* BOOT */
-window.onload=()=>gapi.load("client",init);
+window.onload = () => gapi.load("client", init);
 
 </script>
 
