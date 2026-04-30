@@ -1,272 +1,483 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Finance Pro</title>
-
+<!-- Load GSI client synchronously (no async/defer) so it's ready before our script -->
+<script src="https://accounts.google.com/gsi/client"></script>
 <script src="https://apis.google.com/js/api.js"></script>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
-
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-body{margin:0;font-family:sans-serif;background:#0b1437;color:white;}
-.top{display:flex;align-items:center;padding:15px;}
-.title{font-size:22px;font-weight:bold;}
-button{margin-left:10px;padding:8px 12px;border:none;border-radius:10px;background:#2d3d8b;color:white;cursor:pointer;}
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#060c1f;
+  --surface:#0d1635;
+  --card:#111d42;
+  --accent:#4f6ef7;
+  --green:#00d68f;
+  --red:#ff4d6d;
+  --gold:#f5c542;
+  --text:#e8eaf6;
+  --muted:#5c6bc0;
+  --border:rgba(79,110,247,0.15);
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
 
-.card{margin:15px;padding:15px;border-radius:15px;background:#1b2a6b;}
-.txn{padding:12px;border-bottom:1px solid #2a3a7a;}
-.row{display:flex;justify-content:space-between;}
-.small{font-size:12px;opacity:0.7;margin-top:3px;}
+/* HEADER */
+.header{
+  display:flex;align-items:center;padding:18px 16px 14px;
+  background:linear-gradient(180deg,rgba(13,22,53,0.98) 0%,transparent 100%);
+  position:sticky;top:0;z-index:100;gap:10px;
+  border-bottom:1px solid var(--border);
+  backdrop-filter:blur(20px);
+}
+.logo{font-family:'Space Mono',monospace;font-size:17px;font-weight:700;letter-spacing:-0.5px;flex:1;}
+.logo span{color:var(--accent);}
+.status-pill{
+  font-size:11px;color:var(--muted);background:rgba(79,110,247,0.08);
+  padding:4px 10px;border-radius:20px;border:1px solid var(--border);
+  font-family:'Space Mono',monospace;
+}
+.btn-connect{
+  display:flex;align-items:center;gap:6px;
+  padding:9px 16px;border:none;border-radius:22px;
+  background:linear-gradient(135deg,#4f6ef7,#7b5af8);
+  color:white;font-size:13px;font-weight:600;cursor:pointer;
+  font-family:'DM Sans',sans-serif;
+  box-shadow:0 4px 15px rgba(79,110,247,0.3);
+  transition:all 0.2s;
+}
+.btn-connect:active{transform:scale(0.96);opacity:0.9;}
 
-.green{color:#00e676;}
-.red{color:#ff5252;}
+/* SUMMARY */
+.summary{
+  display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;
+  padding:16px 16px 10px;
+}
+.s-card{
+  background:var(--card);border-radius:16px;padding:14px 12px;
+  border:1px solid var(--border);text-align:center;
+  position:relative;overflow:hidden;
+}
+.s-card::before{
+  content:'';position:absolute;inset:0;opacity:0.04;
+  background:radial-gradient(circle at top right,white,transparent 70%);
+}
+.s-label{font-size:10px;font-weight:600;letter-spacing:1px;opacity:0.5;margin-bottom:8px;text-transform:uppercase;}
+.s-val{font-size:17px;font-weight:700;font-family:'Space Mono',monospace;letter-spacing:-0.5px;}
+.s-val.green{color:var(--green);}
+.s-val.red{color:var(--red);}
+.s-val.blue{color:#64b5f6;}
+
+/* FILTERS */
+.filters{
+  display:flex;gap:8px;padding:4px 16px 14px;overflow-x:auto;
+}
+.filters::-webkit-scrollbar{display:none;}
+.f-btn{
+  flex-shrink:0;padding:7px 18px;border-radius:20px;
+  border:1px solid var(--border);background:transparent;
+  color:rgba(232,234,246,0.6);font-size:13px;font-weight:500;cursor:pointer;
+  transition:all 0.2s;font-family:'DM Sans',sans-serif;white-space:nowrap;
+}
+.f-btn.active{background:var(--accent);border-color:var(--accent);color:white;font-weight:600;}
+
+/* SEARCH */
+.search-wrap{padding:0 16px 12px;}
+.search-input{
+  width:100%;padding:10px 16px;border-radius:12px;
+  border:1px solid var(--border);background:var(--card);
+  color:var(--text);font-size:14px;font-family:'DM Sans',sans-serif;
+  outline:none;
+}
+.search-input::placeholder{color:var(--muted);}
+.search-input:focus{border-color:var(--accent);}
+
+/* TRANSACTIONS */
+.txn-list{padding:0 16px 100px;}
+.date-group{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin:16px 0 8px;}
+
+.txn{
+  background:var(--card);border-radius:16px;padding:14px 15px;
+  margin-bottom:8px;border:1px solid var(--border);
+  display:flex;align-items:center;gap:12px;
+  transition:transform 0.15s;
+}
+.txn:active{transform:scale(0.98);}
+.txn-icon{
+  width:42px;height:42px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;flex-shrink:0;
+}
+.txn-icon.debit{background:rgba(255,77,109,0.12);}
+.txn-icon.credit{background:rgba(0,214,143,0.1);}
+.txn-body{flex:1;min-width:0;}
+.txn-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.txn-sub{display:flex;gap:6px;align-items:center;margin-top:4px;}
+.txn-cat{font-size:10px;background:rgba(79,110,247,0.12);color:var(--accent);padding:2px 7px;border-radius:8px;font-weight:600;}
+.txn-date{font-size:10px;color:var(--muted);}
+.txn-right{text-align:right;flex-shrink:0;}
+.txn-amt{font-size:15px;font-weight:700;font-family:'Space Mono',monospace;letter-spacing:-0.5px;}
+.txn-amt.credit{color:var(--green);}
+.txn-amt.debit{color:var(--red);}
+.txn-time{font-size:10px;color:var(--muted);margin-top:3px;}
+
+/* LOADER */
+.loader{text-align:center;padding:50px 20px;opacity:0.5;}
+.loader-ring{
+  width:40px;height:40px;border-radius:50%;margin:0 auto 12px;
+  border:2px solid var(--border);border-top-color:var(--accent);
+  animation:spin 0.8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+.empty{text-align:center;padding:60px 20px;opacity:0.4;font-size:14px;}
+
+/* CATEGORY ICONS */
+.cat-food{background:rgba(245,197,66,0.12);}
+.cat-travel{background:rgba(79,110,247,0.12);}
+.cat-shop{background:rgba(147,51,234,0.12);}
+.cat-sub{background:rgba(236,72,153,0.12);}
+.cat-health{background:rgba(16,185,129,0.12);}
+.cat-salary{background:rgba(16,185,129,0.12);}
 </style>
 </head>
-
 <body>
 
-<div class="top">
-<div class="title">AI Finance Pro</div>
-<button onclick="auth()">Connect Gmail</button>
-<div id="status" style="margin-left:auto;">Ready</div>
+<div class="header">
+  <div class="logo">AI<span>Finance</span></div>
+  <div class="status-pill" id="status">Ready</div>
+  <button class="btn-connect" onclick="auth()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+    Connect Gmail
+  </button>
 </div>
 
-<div class="card">
-Net Balance
-<div id="net" style="font-size:30px;">₹0</div>
+<div class="summary">
+  <div class="s-card">
+    <div class="s-label">Credited</div>
+    <div class="s-val green" id="tot-inc">₹0</div>
+  </div>
+  <div class="s-card">
+    <div class="s-label">Debited</div>
+    <div class="s-val red" id="tot-exp">₹0</div>
+  </div>
+  <div class="s-card">
+    <div class="s-label">Net</div>
+    <div class="s-val blue" id="tot-net">₹0</div>
+  </div>
 </div>
 
-<div id="list"></div>
+<div class="filters">
+  <button class="f-btn active" onclick="setFilter('all',this)">All</button>
+  <button class="f-btn" onclick="setFilter('income',this)">Credit</button>
+  <button class="f-btn" onclick="setFilter('expense',this)">Debit</button>
+  <button class="f-btn" onclick="setFilter('food',this)">🍔 Food</button>
+  <button class="f-btn" onclick="setFilter('travel',this)">🚗 Travel</button>
+  <button class="f-btn" onclick="setFilter('shopping',this)">🛒 Shopping</button>
+</div>
+
+<div class="search-wrap">
+  <input class="search-input" id="search" placeholder="🔍  Search transactions..." oninput="render()">
+</div>
+
+<div class="txn-list" id="list">
+  <div class="empty">Connect Gmail to load your transactions</div>
+</div>
 
 <script>
-
-const CLIENT_ID="294448907552-42vl2af953es0vo0i44t9a0d5nbttg0b.apps.googleusercontent.com";
-
+const CLIENT_ID = "294448907552-42vl2af953es0vo0i44t9a0d5nbttg0b.apps.googleusercontent.com";
 let tokenClient, token;
-let txns=[];
+let allTxns = [];
+let currentFilter = 'all';
 
-const list = document.getElementById("list");
-const net = document.getElementById("net");
+function setStatus(s) { document.getElementById('status').innerText = s; }
 
-function status(s){
-document.getElementById("status").innerText=s;
+function init() {
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: "https://www.googleapis.com/auth/gmail.readonly",
+    callback: async (r) => {
+      if (r.error) { setStatus("Auth failed"); return; }
+      token = r.access_token;
+      await scan();
+    }
+  });
 }
 
-/* AUTH */
-function init(){
-tokenClient = google.accounts.oauth2.initTokenClient({
-client_id: CLIENT_ID,
-scope: "https://www.googleapis.com/auth/gmail.readonly",
-callback: (r)=>{
-if(r.error){status("Auth failed");return;}
-token = r.access_token;
-scan();
-}
-});
-status("Ready");
-}
+function auth() { tokenClient.requestAccessToken(); }
 
-function auth(){
-tokenClient.requestAccessToken();
-}
+/* ── SCAN ── */
+async function scan() {
+  setStatus("Scanning...");
+  allTxns = [];
+  document.getElementById('list').innerHTML = `<div class="loader"><div class="loader-ring"></div>Fetching emails...</div>`;
 
-/* SCAN */
-async function scan(){
+  // Multiple bank senders - add more as needed
+  const senders = [
+    "alerts@axis.bank.in",
+    "alerts@hdfcbank.net",
+    "alerts@icicibank.com",
+    "sms@iciciprulife.com",
+    "noreply@sbi.co.in",
+    "alerts@kotak.com",
+  ];
 
-status("Scanning...");
-txns=[];
+  for (const sender of senders) {
+    let res = await gmailFetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(`from:${sender} newer_than:90d`)}&maxResults=50`
+    );
+    let msgs = res.messages || [];
+    for (let m of msgs) {
+      try {
+        let d = await gmailFetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=full`);
+        let text = extractText(d);
+        let date = getDate(d);
+        let txn = parseTransaction(text, date);
+        if (txn) allTxns.push({ ...txn, id: m.id });
+      } catch(e) { /* skip bad messages */ }
+    }
+  }
 
-let res = await fetch(
-"https://gmail.googleapis.com/gmail/v1/users/me/messages?q=from:alerts@axis.bank.in newer_than:90d",
-{headers:{Authorization:"Bearer "+token}}
-);
-
-let data = await res.json();
-let msgs = (data.messages||[]).slice(0,30);
-
-for(let m of msgs){
-
-let r = await fetch(
-"https://gmail.googleapis.com/gmail/v1/users/me/messages/"+m.id+"?format=full",
-{headers:{Authorization:"Bearer "+token}}
-);
-
-let d = await r.json();
-
-let text = extractText(d);
-text = normalize(text);
-
-let txn = parseTransaction(text);
-
-if(txn && txn.amount){
-txns.push(txn);
+  allTxns = dedupe(allTxns);
+  allTxns.sort((a, b) => b.date - a.date);
+  render();
+  setStatus(`${allTxns.length} txns`);
 }
 
+async function gmailFetch(url) {
+  let res = await fetch(url, { headers: { Authorization: "Bearer " + token } });
+  return res.json();
 }
 
-/* remove duplicates */
-txns = dedupe(txns);
-
-render();
-status("Done");
-
+/* ── DATE FROM EMAIL ── */
+function getDate(msg) {
+  const headers = msg.payload?.headers || [];
+  const h = headers.find(h => h.name.toLowerCase() === 'date');
+  if (h) {
+    let d = new Date(h.value);
+    if (!isNaN(d)) return d;
+  }
+  return msg.internalDate ? new Date(parseInt(msg.internalDate)) : new Date();
 }
 
-/* EXTRACT TEXT */
-function extractText(msg){
-
-let text="";
-
-function decode(data){
-return atob(data.replace(/-/g,'+').replace(/_/g,'/'));
+/* ── EXTRACT PLAIN TEXT ── */
+function extractText(msg) {
+  let parts = [];
+  function decode(s) {
+    try { return atob(s.replace(/-/g,'+').replace(/_/g,'/')); }
+    catch(e) { return ''; }
+  }
+  function walk(p) {
+    if (!p) return;
+    if (p.mimeType === "text/plain" && p.body?.data) parts.push(decode(p.body.data));
+    else if (p.mimeType === "text/html" && p.body?.data) parts.push(decode(p.body.data).replace(/<[^>]+>/g,' '));
+    if (p.parts) p.parts.forEach(walk);
+  }
+  walk(msg.payload);
+  return parts.join(' ').replace(/\s+/g, ' ').trim();
 }
 
-function walk(p){
-if(!p) return;
+/* ── PARSE TRANSACTION ── */
+function parseTransaction(rawText, date) {
+  // Normalise currency markers
+  let t = rawText
+    .replace(/Rs\.?\s*|INR\s*|₹\s*/gi, '₹')
+    .replace(/\n|\r/g, ' ')
+    .replace(/\s{2,}/g, ' ');
 
-if(p.mimeType==="text/plain" && p.body?.data){
-text += decode(p.body.data)+" ";
+  // ── Amount ──
+  let amtMatch = t.match(/₹([\d,]+(?:\.\d{1,2})?)/);
+  if (!amtMatch) return null;
+  let amount = parseFloat(amtMatch[1].replace(/,/g,''));
+  if (!amount || amount <= 0) return null;
+
+  // ── Type ──
+  let isCredit = /(credited|credit to|received|deposit|refund|added to|reversed)/i.test(t);
+  let isDebit  = /(debited|debit(ed)?|spent|paid|purchase|payment of|withdrawn|deducted|used at)/i.test(t);
+  if (!isCredit && !isDebit) return null;
+  let type = isCredit ? 'income' : 'expense';
+
+  // ── Merchant / Name ──
+  let name = extractName(t, type);
+
+  return { amount, type, name, category: categorize(name), date, dateStr: fmtDate(date) };
 }
 
-if(p.mimeType==="text/html" && p.body?.data){
-text += decode(p.body.data).replace(/<[^>]*>/g,' ')+" ";
+/* ── NAME EXTRACTION (multi-pattern) ── */
+function extractName(t, type) {
+  let m;
+
+  m = t.match(/Info[:\s]+UPI[\/\-\s]?([A-Za-z0-9@._&\- ]{2,40?})(?:[\/\|,\s]|$)/i);
+  if (m) return clean(m[1].split('/')[0]);
+
+  m = t.match(/VPA[:\s]+([A-Za-z0-9._-]+)@/i);
+  if (m) return clean(m[1]);
+
+  m = t.match(/(?:towards|at)\s+UPI[\/\-]([A-Za-z0-9@._&\- ]{2,35?})(?:[\/,\s]|$)/i);
+  if (m) return clean(m[1].split('/')[0]);
+
+  m = t.match(/towards\s+([A-Za-z][A-Za-z0-9\s&._\-]{1,35?}?)\s+(?:on\s|\d{2}[-\/])/i);
+  if (m) return clean(m[1]);
+
+  m = t.match(/(?:used at|spent at|purchase at)\s+([A-Za-z][A-Za-z0-9\s&._\-]{1,35?}?)\s+on/i);
+  if (m) return clean(m[1]);
+
+  if (type === 'income') {
+    m = t.match(/(?:credited.*?from|received from|transfer from|from)\s+([A-Za-z][A-Za-z0-9\s&._\-]{1,35?}?)\s+(?:on|via|to|ref|\d{2}[-\/]|$)/i);
+    if (m && m[1].length > 1) return clean(m[1]);
+  }
+
+  if (type === 'expense') {
+    m = t.match(/(?:payment to|paid to|transfer to|to)\s+([A-Za-z][A-Za-z0-9\s&._\-]{1,35?}?)\s+(?:on|via|ref|\d{2}[-\/]|$)/i);
+    if (m && m[1].length > 1) return clean(m[1]);
+  }
+
+  m = t.match(/Transaction Alert[:\-\s]+([A-Za-z0-9\s&]{3,30?}?)\s*(?:₹|\d|$)/i);
+  if (m) return clean(m[1]);
+
+  return "UNKNOWN";
 }
 
-if(p.parts) p.parts.forEach(walk);
+function clean(s) {
+  if (!s) return 'UNKNOWN';
+  let out = s
+    .replace(/\b(upi|vpa|ref|txn|id|neft|imps|axis|hdfc|icici|sbi|bank|alert|dear|customer|your|account|a\/c|ac|from|to|on|via|using|the|and|for)\b/gi,' ')
+    .replace(/[^A-Za-z0-9\s&@._\-]/g,' ')
+    .replace(/\s+/g,' ')
+    .trim()
+    .toUpperCase()
+    .slice(0,28)
+    .trim();
+  return out.length < 2 ? 'UNKNOWN' : out;
 }
 
-walk(msg.payload);
+/* ── CATEGORY ── */
+const catRules = [
+  [/zomato|swiggy|blinkit|bigbasket|food|restaurant|cafe|domino|pizza|kfc|mcdonalds|burger|chai/, 'food', '🍔'],
+  [/uber|ola|irctc|train|flight|fuel|petrol|rapido|metro|cab|bus|yatra|makemytrip/, 'travel', '✈️'],
+  [/amazon|flipkart|myntra|meesho|nykaa|shop|store|retail|ajio|snapdeal/, 'shopping', '🛒'],
+  [/netflix|spotify|prime|hotstar|youtube|jio|airtel|bsnl|recharge|dth|broadband/, 'subscription', '📱'],
+  [/hospital|pharmacy|medical|doctor|health|apollo|1mg|practo|medicover/, 'health', '🏥'],
+  [/salary|payroll|wages|employer|company/, 'salary', '💼'],
+  [/electricity|water|gas|bill|utility|bses|tata power/, 'utilities', '⚡'],
+  [/rent|housing|maintenance|society/, 'housing', '🏠'],
+];
 
-return text;
-
+function categorize(name) {
+  let n = name.toLowerCase();
+  for (let [rx, cat, icon] of catRules) {
+    if (rx.test(n)) return { cat, icon };
+  }
+  return { cat: 'other', icon: '💳' };
 }
 
-/* CLEAN ALL BANK NOISE */
-function normalize(t){
-
-return t
-.replace(/\n/g,' ')
-.replace(/\s+/g,' ')
-.replace(/(₹|inr|rs\.?)/gi,'₹')
-
-/* AXIS + EMAIL NOISE */
-.replace(/block sms|blocked|customer|fraud|alert|axis bank|dear customer|important|from your|other/gi,' ')
-
-.replace(/content-type:.*/gi,'')
-.replace(/content-transfer-encoding:.*/gi,'')
-.trim();
-
+/* ── DATE FORMAT ── */
+function fmtDate(d) {
+  if (!d || isNaN(d)) return '';
+  return d.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'2-digit' });
+}
+function fmtTime(d) {
+  if (!d || isNaN(d)) return '';
+  return d.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:true });
+}
+function fmtAmt(n) {
+  return n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+}
+function groupKey(d) {
+  let now = new Date();
+  let diff = (now - d) / 86400000;
+  if (diff < 1) return 'Today';
+  if (diff < 2) return 'Yesterday';
+  return d.toLocaleDateString('en-IN', { day:'2-digit', month:'long', year:'numeric' });
 }
 
-/* FINAL AI PARSER */
-function parseTransaction(t){
-
-t = t.replace(/\s{2,}/g,' ');
-
-/* split by ₹ blocks */
-let blocks = t.split(/(?=₹)/g);
-
-for(let b of blocks){
-
-let amt = b.match(/₹\s?([\d,]+)/);
-if(!amt) continue;
-
-let amount = parseInt(amt[1].replace(/,/g,''));
-
-/* detect type */
-let isIncome = /(credited|received|deposit|refund)/i.test(b);
-let isExpense = /(debited|spent|paid|purchase)/i.test(b);
-
-if(!isIncome && !isExpense) continue;
-
-/* merchant */
-let name = b
-.replace(/₹[\d,]+/,'')
-.replace(/credited|debited|received|spent|paid|purchase/gi,' ')
-.replace(/upi|vpa|ref|txn|id|axis bank|other|from your/gi,' ')
-.replace(/[^a-zA-Z ]/g,' ')
-.replace(/\s+/g,' ')
-.trim()
-.toUpperCase()
-.split(' ')
-.filter(w=>w.length>2)
-.join(' ')
-.slice(0,25);
-
-if(!name) name="UNKNOWN";
-
-return {
-amount,
-type: isIncome ? "income" : "expense",
-name,
-category: categorize(name)
-};
-
+/* ── DEDUPLICATE ── */
+function dedupe(arr) {
+  let seen = new Set();
+  return arr.filter(t => {
+    let k = `${t.amount}|${t.name}|${t.type}|${t.dateStr}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
 }
 
-return null;
+/* ── FILTER ── */
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.f-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
 }
 
-/* CATEGORY */
-function categorize(name){
+/* ── RENDER ── */
+function render() {
+  let q = document.getElementById('search').value.toLowerCase().trim();
 
-name = name.toLowerCase();
+  let filtered = allTxns.filter(t => {
+    if (q && !t.name.toLowerCase().includes(q) && !t.category.cat.includes(q)) return false;
+    if (currentFilter === 'income') return t.type === 'income';
+    if (currentFilter === 'expense') return t.type === 'expense';
+    if (['food','travel','shopping','subscription','health','salary'].includes(currentFilter))
+      return t.category.cat === currentFilter;
+    return true;
+  });
 
-if(name.match(/zomato|swiggy|food|restaurant/)) return "FOOD";
-if(name.match(/uber|ola|irctc|train|flight|fuel/)) return "TRAVEL";
-if(name.match(/amazon|flipkart|myntra|shop/)) return "SHOPPING";
+  // Summary (always from all)
+  let inc = 0, exp = 0;
+  allTxns.forEach(t => t.type === 'income' ? (inc += t.amount) : (exp += t.amount));
+  document.getElementById('tot-inc').textContent = '₹' + fmtAmt(inc);
+  document.getElementById('tot-exp').textContent = '₹' + fmtAmt(exp);
+  let net = inc - exp;
+  let netEl = document.getElementById('tot-net');
+  // FIXED: keep .s-val base class and add color class
+  netEl.textContent = (net < 0 ? '-' : '') + '₹' + fmtAmt(Math.abs(net));
+  netEl.className = 's-val ' + (net >= 0 ? 'green' : 'red');
 
-return "OTHER";
+  const list = document.getElementById('list');
+  if (filtered.length === 0) {
+    list.innerHTML = `<div class="empty">${allTxns.length ? 'No matches found' : 'Connect Gmail to load transactions'}</div>`;
+    return;
+  }
+
+  // Group by date
+  let groups = {};
+  filtered.forEach(t => {
+    let gk = groupKey(t.date);
+    if (!groups[gk]) groups[gk] = [];
+    groups[gk].push(t);
+  });
+
+  let html = '';
+  for (let [day, txns] of Object.entries(groups)) {
+    html += `<div class="date-group">${day}</div>`;
+    for (let t of txns) {
+      let isCredit = t.type === 'income';
+      let { icon, cat } = t.category;
+      let catClass = `cat-${cat}`;
+      let iconClass = isCredit ? 'credit' : 'debit';
+      html += `
+      <div class="txn">
+        <div class="txn-icon ${iconClass} ${catClass}">${icon}</div>
+        <div class="txn-body">
+          <div class="txn-name">${t.name}</div>
+          <div class="txn-sub">
+            <span class="txn-cat">${cat.toUpperCase()}</span>
+            <span class="txn-date">${t.dateStr}</span>
+          </div>
+        </div>
+        <div class="txn-right">
+          <div class="txn-amt ${isCredit ? 'credit' : 'debit'}">${isCredit ? '+' : '-'}₹${fmtAmt(t.amount)}</div>
+          <div class="txn-time">${fmtTime(t.date)}</div>
+        </div>
+      </div>`;
+    }
+  }
+  list.innerHTML = html;
 }
 
-/* REMOVE DUPLICATES */
-function dedupe(arr){
-
-let seen = new Set();
-
-return arr.filter(t=>{
-let key = t.amount + t.name + t.type;
-if(seen.has(key)) return false;
-seen.add(key);
-return true;
-});
-
-}
-
-/* RENDER */
-function render(){
-
-let inc=0, exp=0;
-list.innerHTML="";
-
-txns.forEach(t=>{
-
-if(t.type==="income") inc+=t.amount;
-else exp+=t.amount;
-
-let div=document.createElement("div");
-div.className="txn";
-
-div.innerHTML=`
-<div class="row">
-<div>${t.name}</div>
-<div class="${t.type==="income"?"green":"red"}">₹${t.amount}</div>
-</div>
-<div class="small">${t.category}</div>
-`;
-
-list.appendChild(div);
-
-});
-
-net.innerText="₹"+(inc-exp);
-
-}
-
-/* BOOT */
-window.onload=()=>gapi.load("client",init);
-
+window.onload = () => gapi.load("client", init);
 </script>
-
 </body>
 </html>
