@@ -361,7 +361,8 @@ function parseTransaction(rawText, date) {
     .replace(/\n|\r/g, ' ')
     .replace(/\s{2,}/g, ' ');
 
-  let amtMatch = t.match(/₹([\d,]+(?:\.\d{1,2})?)/);
+  // Allow optional space after ₹ (e.g. "₹ 600.00")
+  let amtMatch = t.match(/₹\s*([\d,]+(?:\.\d{1,2})?)/);
   if (!amtMatch) return null;
   let amount = parseFloat(amtMatch[1].replace(/,/g,''));
   if (!amount || amount <= 0) return null;
@@ -380,44 +381,81 @@ const IGNORE_WORDS = /\b(P2A|P2M|P2P|CR|DR|SBIN|HDFC|ICICI|AXIS|SBI|KOTAK|PAYMEN
 
 function extractName(t, type) {
   let m;
+  let candidate = '';
 
-  // 1. Axis credit: "Transaction Info: UPI/P2A/.../MERCHANT_NAME/..."
-  m = t.match(/Transaction\s*Info\s*:\s*UPI\s*\/\s*(?:[A-Z0-9]+\/)*([A-Za-z0-9\s]+?)\s*(?:\/|$)/i);
-  if (m && !/^(P2A|P2M|P2P|CR|DR)$/i.test(m[1].trim())) return clean(m[1]);
+  // 1. Axis credit: "Transaction Info: UPI/P2A/.../NAME/..."
+  // Skip numeric segments – look for the first alphabetic segment after a number
+  m = t.match(/Transaction\s*Info\s*:\s*UPI\s*\/\s*((?:[A-Z0-9]+\/)+)([A-Za-z]{2,}[\sA-Za-z]*?)(?:\/|$)/i);
+  if (m) {
+    // group 2 is the name part (must start with at least 2 letters)
+    let namePart = m[2];
+    if (namePart && !/^\d+$/.test(namePart)) candidate = clean(namePart);
+  }
+  if (!candidate) {
+    // fallback: capture everything after the last numeric segment
+    m = t.match(/Transaction\s*Info\s*:\s*UPI\s*\/\s*(?:[A-Z0-9]+\/)*([A-Za-z0-9\s]+?)\s*(?:\/|$)/i);
+    if (m) {
+      let raw = m[1];
+      if (!/^\d+$/.test(raw)) candidate = clean(raw);
+    }
+  }
 
-  // 2. Axis debit: "at /MERCHANT/LOCATION/..." → capture first segment after "at /"
-  m = t.match(/\bat\s+\/([A-Za-z0-9\s]+?)(?:\s*\/|$)/i);
-  if (m) return clean(m[1].replace(/\//g, ' '));
+  // 2. Axis debit: "at /MERCHANT/LOCATION/...", capture first segment
+  if (!candidate) {
+    m = t.match(/\bat\s+\/([A-Za-z0-9\s]+?)(?:\s*\/|$)/i);
+    if (m) {
+      let cap = m[1].replace(/\//g, ' ');
+      candidate = clean(cap);
+      if (candidate === 'UNKNOWN' || candidate.length < 2) candidate = '';
+    }
+  }
 
-  // 3. Subject line "Transaction Alert: ..." (often contains merchant)
-  m = t.match(/Transaction\s+Alert\s*[:\-]+\s*([A-Za-z0-9\s&._\-]{3,30}?)(?:\s*\/|\s*₹|\s*\d|$)/i);
-  if (m) return clean(m[1]);
+  // 3. "at MERCHANT on" – POS
+  if (!candidate) {
+    m = t.match(/(?:at|spent at|used at|purchase at|swiped at)\s+([A-Za-z0-9\s&._\-]{2,40}?)\s+on/i);
+    if (m) candidate = clean(m[1]);
+  }
 
   // 4. VPA: name@bank (UPI)
-  m = t.match(/VPA\s*[:\-]?\s*([A-Za-z0-9._-]+)@/i);
-  if (m) return clean(m[1]);
+  if (!candidate) {
+    m = t.match(/VPA\s*[:\-]?\s*([A-Za-z0-9._-]+)@/i);
+    if (m) candidate = clean(m[1]);
+  }
 
-  // 5. "at MERCHANT on" – POS
-  m = t.match(/(?:at|spent at|used at|purchase at|swiped at)\s+([A-Za-z0-9\s&._\-]{2,40}?)\s+on/i);
-  if (m) return clean(m[1]);
+  // 5. "towards ... on"
+  if (!candidate) {
+    m = t.match(/towards\s+(?:UPI\/)?([A-Za-z0-9\s&._\-]{2,40}?)\s+(?:on|dated|for)/i);
+    if (m) candidate = clean(m[1]);
+  }
 
-  // 6. "towards ... on"
-  m = t.match(/towards\s+(?:UPI\/)?([A-Za-z0-9\s&._\-]{2,40}?)\s+(?:on|dated|for)/i);
-  if (m) return clean(m[1]);
+  // 6. NEFT/IMPS credit
+  if (!candidate) {
+    m = t.match(/(?:credited\s+by|transfer\s+from|received\s+from|neft\s+from)\s+([A-Za-z0-9\s&._\-]{2,40}?)\s+(?:on|via|ref|a\/c|$)/i);
+    if (m) candidate = clean(m[1]);
+  }
 
-  // 7. NEFT/IMPS credit
-  m = t.match(/(?:credited\s+by|transfer\s+from|received\s+from|neft\s+from)\s+([A-Za-z0-9\s&._\-]{2,40}?)\s+(?:on|via|ref|a\/c|$)/i);
-  if (m) return clean(m[1]);
+  // 7. "to [Name] on ..."
+  if (!candidate) {
+    m = t.match(/(?:to|payment to|paid to|sent to)\s+([A-Za-z0-9\s&._\-]{2,40}?)\s+(?:on|via|ref|\d{2}[-\/])/i);
+    if (m) candidate = clean(m[1]);
+  }
 
-  // 8. "to [Name] on ..."
-  m = t.match(/(?:to|payment to|paid to|sent to)\s+([A-Za-z0-9\s&._\-]{2,40}?)\s+(?:on|via|ref|\d{2}[-\/])/i);
-  if (m) return clean(m[1]);
+  // 8. "Transaction Alert: ..."
+  if (!candidate) {
+    m = t.match(/Transaction\s+Alert\s*[:\-]+\s*([A-Za-z0-9\s&._\-]{3,30}?)(?:\s*\/|\s*₹|\s*\d|$)/i);
+    if (m) candidate = clean(m[1]);
+  }
 
   // 9. Fallback: any "at " before ₹ or INR
-  m = t.match(/at\s+([A-Za-z0-9\s&._\-]{2,40}?)\s*(?:₹|INR|\.|on|$)/i);
-  if (m) return clean(m[1]);
+  if (!candidate) {
+    m = t.match(/at\s+([A-Za-z0-9\s&._\-]{2,40}?)\s*(?:₹|INR|\.|on|$)/i);
+    if (m) candidate = clean(m[1]);
+  }
 
-  return "UNKNOWN";
+  // Final safety: if candidate is purely numeric, discard and return UNKNOWN
+  if (candidate && /^\d+$/.test(candidate)) candidate = '';
+
+  return candidate || "UNKNOWN";
 }
 
 function clean(s) {
