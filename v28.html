@@ -158,14 +158,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 @keyframes spin{to{transform:rotate(360deg);}}
 
 .empty{text-align:center;padding:60px 20px;opacity:0.4;font-size:14px;}
-
-/* CATEGORY ICONS */
-.cat-food{background:rgba(245,197,66,0.12);}
-.cat-travel{background:rgba(79,110,247,0.12);}
-.cat-shop{background:rgba(147,51,234,0.12);}
-.cat-sub{background:rgba(236,72,153,0.12);}
-.cat-health{background:rgba(16,185,129,0.12);}
-.cat-salary{background:rgba(16,185,129,0.12);}
 </style>
 </head>
 <body>
@@ -223,6 +215,42 @@ let tokenClient, token;
 let allTxns = [];
 let currentFilter = 'all';
 
+const STORAGE_KEY = 'aifinance_txns';
+
+function saveTxns() {
+  try {
+    // Save only necessary fields (serialisable)
+    const data = allTxns.map(t => ({
+      id: t.id,
+      amount: t.amount,
+      type: t.type,
+      name: t.name,
+      category: t.category,
+      date: t.date.toISOString(),
+      dateStr: t.dateStr
+    }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch(e) {}
+}
+
+function loadTxns() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    const arr = JSON.parse(raw);
+    allTxns = arr.map(t => ({
+      ...t,
+      date: new Date(t.date),
+      category: t.category || categorize(t.name),
+      dateStr: t.dateStr || fmtDate(new Date(t.date))
+    }));
+    allTxns.sort((a,b) => b.date - a.date);
+    return true;
+  } catch(e) {
+    return false;
+  }
+}
+
 function setStatus(s) { document.getElementById('status').innerText = s; }
 
 function toggleManual() {
@@ -248,6 +276,7 @@ function addManualTxn() {
     dateStr: fmtDate(now)
   };
   allTxns.unshift(txn);
+  saveTxns();
   document.getElementById('manAmt').value = '';
   document.getElementById('manDesc').value = '';
   document.getElementById('manualForm').classList.remove('active');
@@ -256,6 +285,13 @@ function addManualTxn() {
 }
 
 function init() {
+  // Try to load saved data first
+  const hasSaved = loadTxns();
+  if (hasSaved && allTxns.length > 0) {
+    render();
+    setStatus(`Saved data (${allTxns.length})`);
+  }
+
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
     scope: "https://www.googleapis.com/auth/gmail.readonly",
@@ -268,12 +304,11 @@ function init() {
 }
 
 async function sync() {
-  // If already have token, just scan; otherwise request auth
-  if (token) {
-    await scan();
-  } else {
+  if (!token) {
     tokenClient.requestAccessToken();
+    return;
   }
+  await scan();
 }
 
 /* ── SCAN ── */
@@ -291,7 +326,6 @@ async function scan() {
     "alerts@kotak.com",
   ];
 
-  // Progress UI
   const progressWrap = document.getElementById('progressWrap');
   const progressText = document.getElementById('progressText');
   const progressFill = document.getElementById('progressFill');
@@ -313,7 +347,7 @@ async function scan() {
         let date = getDate(d);
         let txn = parseTransaction(text, date);
         if (txn) allTxns.push({ ...txn, id: m.id });
-      } catch(e) { /* skip bad messages */ }
+      } catch(e) {}
     }
     completed++;
     progressText.textContent = `Scanning bank ${completed} of ${total}`;
@@ -323,8 +357,10 @@ async function scan() {
   allTxns = dedupe(allTxns);
   allTxns.sort((a, b) => b.date - a.date);
   progressWrap.classList.remove('active');
+
+  saveTxns();  // Save to device
   render();
-  setStatus(`${allTxns.length} txns`);
+  setStatus(`${allTxns.length} txns (saved)`);
 }
 
 async function gmailFetch(url) {
@@ -367,7 +403,6 @@ function parseTransaction(rawText, date) {
     .replace(/\n|\r/g, ' ')
     .replace(/\s{2,}/g, ' ');
 
-  // Allow optional space after ₹
   let amtMatch = t.match(/₹\s*([\d,]+(?:\.\d{1,2})?)/);
   if (!amtMatch) return null;
   let amount = parseFloat(amtMatch[1].replace(/,/g,''));
@@ -389,7 +424,6 @@ function extractName(t, type) {
   let m;
   let candidate = '';
 
-  // 1. Axis credit: "Transaction Info: UPI/P2A/.../NAME/..."
   m = t.match(/Transaction\s*Info\s*:\s*UPI\s*\/\s*((?:[A-Z0-9]+\/)+)([A-Za-z]{2,}[\sA-Za-z]*?)(?:\/|$)/i);
   if (m) {
     let namePart = m[2];
@@ -403,7 +437,6 @@ function extractName(t, type) {
     }
   }
 
-  // 2. Axis debit: "at /MERCHANT/LOCATION/..."
   if (!candidate) {
     m = t.match(/\bat\s+\/([A-Za-z0-9\s]+?)(?:\s*\/|$)/i);
     if (m) {
@@ -413,43 +446,36 @@ function extractName(t, type) {
     }
   }
 
-  // 3. "at MERCHANT on"
   if (!candidate) {
     m = t.match(/(?:at|spent at|used at|purchase at|swiped at)\s+([A-Za-z0-9\s&._\-]{2,40}?)\s+on/i);
     if (m) candidate = clean(m[1]);
   }
 
-  // 4. VPA
   if (!candidate) {
     m = t.match(/VPA\s*[:\-]?\s*([A-Za-z0-9._-]+)@/i);
     if (m) candidate = clean(m[1]);
   }
 
-  // 5. "towards ... on"
   if (!candidate) {
     m = t.match(/towards\s+(?:UPI\/)?([A-Za-z0-9\s&._\-]{2,40}?)\s+(?:on|dated|for)/i);
     if (m) candidate = clean(m[1]);
   }
 
-  // 6. NEFT/IMPS
   if (!candidate) {
     m = t.match(/(?:credited\s+by|transfer\s+from|received\s+from|neft\s+from)\s+([A-Za-z0-9\s&._\-]{2,40}?)\s+(?:on|via|ref|a\/c|$)/i);
     if (m) candidate = clean(m[1]);
   }
 
-  // 7. "to [Name] on"
   if (!candidate) {
     m = t.match(/(?:to|payment to|paid to|sent to)\s+([A-Za-z0-9\s&._\-]{2,40}?)\s+(?:on|via|ref|\d{2}[-\/])/i);
     if (m) candidate = clean(m[1]);
   }
 
-  // 8. Transaction Alert
   if (!candidate) {
     m = t.match(/Transaction\s+Alert\s*[:\-]+\s*([A-Za-z0-9\s&._\-]{3,30}?)(?:\s*\/|\s*₹|\s*\d|$)/i);
     if (m) candidate = clean(m[1]);
   }
 
-  // 9. Fallback "at "
   if (!candidate) {
     m = t.match(/at\s+([A-Za-z0-9\s&._\-]{2,40}?)\s*(?:₹|INR|\.|on|$)/i);
     if (m) candidate = clean(m[1]);
