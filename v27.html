@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Finance Pro X</title>
+<title>Finance Pro</title>
 
 <script src="https://apis.google.com/js/api.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -16,11 +16,8 @@ button{margin-left:10px;padding:8px 12px;border:none;border-radius:10px;backgrou
 .card{margin:15px;padding:15px;border-radius:15px;background:#1b2a6b;}
 .txn{padding:12px;border-bottom:1px solid #2a3a7a;display:flex;justify-content:space-between;}
 .name{font-weight:600;}
-.cat{font-size:11px;opacity:.6;}
 .green{color:#00e676;}
 .red{color:#ff5252;}
-
-.search{margin:15px;width:calc(100% - 30px);padding:10px;border-radius:10px;border:none;background:#111842;color:white;}
 
 #loader{position:fixed;bottom:20px;left:20px;right:20px;background:#1b2a6b;padding:10px;border-radius:10px;}
 #bar{height:5px;background:#6f8cff;width:0%;}
@@ -30,12 +27,10 @@ button{margin-left:10px;padding:8px 12px;border:none;border-radius:10px;backgrou
 <body>
 
 <div class="top">
-<div class="title">Finance Pro X</div>
-<button onclick="auth()">Connect</button>
+<div class="title">Finance Pro</div>
+<button onclick="auth()">Connect Gmail</button>
 <div id="status" style="margin-left:auto;">Ready</div>
 </div>
-
-<input class="search" id="search" placeholder="Search transactions">
 
 <div class="card">
 Net Balance
@@ -56,22 +51,10 @@ const CLIENT_ID="294448907552-42vl2af953es0vo0i44t9a0d5nbttg0b.apps.googleuserco
 let tokenClient, token;
 let txns=[];
 
-/* CATEGORY */
-function getCat(n){
-n=n.toLowerCase();
-if(n.includes("zomato")||n.includes("swiggy")) return "Food";
-if(n.includes("uber")||n.includes("ola")) return "Travel";
-if(n.includes("amazon")||n.includes("flipkart")) return "Shopping";
-return "Other";
-}
-
-/* UI */
-function status(s){statusEl.innerText=s;}
-const statusEl=document.getElementById("status");
-
-function prog(done,total){
-document.getElementById("prog").innerText=done+"/"+total;
-document.getElementById("bar").style.width=(done/total*100)+"%";
+function status(s){document.getElementById("status").innerText=s;}
+function prog(d,t){
+document.getElementById("prog").innerText=d+"/"+t;
+document.getElementById("bar").style.width=(d/t*100)+"%";
 }
 
 /* AUTH */
@@ -79,16 +62,23 @@ function init(){
 tokenClient=google.accounts.oauth2.initTokenClient({
 client_id:CLIENT_ID,
 scope:"https://www.googleapis.com/auth/gmail.readonly",
-callback:(r)=>{token=r.access_token;scan();}
+callback:(r)=>{
+if(r.error){status("Auth failed");return;}
+token=r.access_token;
+scan();
+}
 });
+status("Ready");
 }
 
-function auth(){tokenClient.requestAccessToken();}
+function auth(){
+if(tokenClient) tokenClient.requestAccessToken();
+}
 
-/* FAST SCAN (USING SNIPPETS) */
+/* FAST SCAN */
 async function scan(){
 
-status("Scanning fast...");
+status("Scanning...");
 txns=[];
 
 let res=await fetch(
@@ -97,7 +87,7 @@ let res=await fetch(
 );
 
 let data=await res.json();
-let msgs=(data.messages||[]).slice(0,80);
+let msgs=(data.messages||[]).slice(0,60);
 
 let done=0;
 
@@ -110,7 +100,7 @@ let r=await fetch(
 
 let d=await r.json();
 
-/* USE SNIPPET (FAST) */
+/* USE SNIPPET ONLY */
 let text=(d.snippet||"").toLowerCase();
 
 let txn=parse(text);
@@ -122,20 +112,21 @@ prog(done,msgs.length);
 
 }
 
+/* fallback if nothing found */
+if(txns.length===0){
+status("Deep scan...");
+await deepScan(msgs);
+}
+
 render();
 status("Done");
 
-/* if low results → deep scan */
-if(txns.length<5) deepScan(msgs);
-
 }
 
-/* DEEP SCAN ONLY IF NEEDED */
+/* DEEP SCAN (LIMITED) */
 async function deepScan(msgs){
 
-status("Deep scan...");
-
-for(let m of msgs.slice(0,30)){
+for(let m of msgs.slice(0,25)){
 
 let r=await fetch(
 "https://gmail.googleapis.com/gmail/v1/users/me/messages/"+m.id,
@@ -152,41 +143,39 @@ if(txn) txns.push(txn);
 
 }
 
-render();
-status("Deep done");
-
 }
 
-/* STRONG PARSER */
+/* PARSER (FIXED FOR AXIS FORMAT) */
 function parse(t){
 
-/* debit */
-let d=t.match(/inr\s([\d,]+).*debited.*at\s(.+?)(\.|,)/i);
+/* debit example */
+let debit=t.match(/inr\s([\d,]+).*debited.*at\s\/?.*?\/([a-z0-9 ]+)/i);
 
-/* credit */
-let c=t.match(/inr\s([\d,]+).*credited.*\/([^\/]+)\//i);
+/* credit example */
+let credit=t.match(/inr\s([\d,]+).*credited.*upi.*\/([^\/]+)\//i);
 
-if(d){
+if(debit){
 return {
-amount:num(d[1]),
+amount:num(debit[1]),
 type:"expense",
-name:clean(d[2])
+name:clean(debit[2])
 };
 }
 
-if(c){
+if(credit){
 return {
-amount:num(c[1]),
+amount:num(credit[1]),
 type:"income",
-name:clean(c[2])
+name:clean(credit[2])
 };
 }
 
 return null;
-
 }
 
-function num(n){return parseInt(n.replace(/,/g,""));}
+function num(n){
+return parseInt(n.replace(/,/g,""));
+}
 
 function clean(n){
 return n
@@ -205,8 +194,6 @@ list.innerHTML="";
 
 txns.forEach(t=>{
 
-let cat=getCat(t.name);
-
 if(t.type==="income") inc+=t.amount;
 else exp+=t.amount;
 
@@ -214,10 +201,7 @@ let div=document.createElement("div");
 div.className="txn";
 
 div.innerHTML=
-`<div>
-<div class="name">${t.name}</div>
-<div class="cat">${cat}</div>
-</div>
+`<div class="name">${t.name}</div>
 <div class="${t.type==="income"?"green":"red"}">₹${t.amount}</div>`;
 
 list.appendChild(div);
@@ -227,19 +211,6 @@ list.appendChild(div);
 net.innerText="₹"+(inc-exp);
 
 }
-
-/* SEARCH */
-search.oninput=e=>{
-let q=e.target.value.toLowerCase();
-list.innerHTML="";
-txns.filter(t=>t.name.toLowerCase().includes(q))
-.forEach(t=>{
-let div=document.createElement("div");
-div.className="txn";
-div.innerHTML=`<span>${t.name}</span><span>₹${t.amount}</span>`;
-list.appendChild(div);
-});
-};
 
 /* BOOT */
 window.onload=()=>gapi.load("client",init);
