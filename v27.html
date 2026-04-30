@@ -112,7 +112,7 @@ status("Done");
 
 }
 
-/* EXTRACT EMAIL TEXT */
+/* EXTRACT TEXT */
 function extractText(msg){
 
 let text="";
@@ -141,7 +141,7 @@ return text;
 
 }
 
-/* CLEAN NOISE */
+/* CLEAN ALL BANK NOISE */
 function normalize(t){
 
 return t
@@ -149,8 +149,8 @@ return t
 .replace(/\s+/g,' ')
 .replace(/(₹|inr|rs\.?)/gi,'₹')
 
-/* REMOVE AXIS JUNK */
-.replace(/block sms|blocked|customer|fraud|alert|axis bank|dear customer|important/gi,' ')
+/* AXIS + EMAIL NOISE */
+.replace(/block sms|blocked|customer|fraud|alert|axis bank|dear customer|important|from your|other/gi,' ')
 
 .replace(/content-type:.*/gi,'')
 .replace(/content-transfer-encoding:.*/gi,'')
@@ -158,51 +158,32 @@ return t
 
 }
 
-/* CORE PARSER */
+/* FINAL AI PARSER */
 function parseTransaction(t){
 
 t = t.replace(/\s{2,}/g,' ');
 
-/* DEBIT */
-let debit = t.match(
-/₹\s?([\d,]+).*?(debited|spent|paid).*?(?:at|to|via)?\s*([a-z0-9 ]{3,})/i
-);
+/* split by ₹ blocks */
+let blocks = t.split(/(?=₹)/g);
 
-/* CREDIT (FIXED BLANK ISSUE) */
-let credit = t.match(
-/₹\s?([\d,]+).*?(credited|received).*?(?:from|upi|vpa|via)?\s*\/?\s*([a-z0-9 ]{3,})/i
-);
+for(let b of blocks){
 
-if(debit){
+let amt = b.match(/₹\s?([\d,]+)/);
+if(!amt) continue;
 
-return {
-amount: parseInt(debit[1].replace(/,/g,'')),
-type: "expense",
-name: cleanMerchant(debit[3]),
-category: categorize(debit[3])
-};
+let amount = parseInt(amt[1].replace(/,/g,''));
 
-}
+/* detect type */
+let isIncome = /(credited|received|deposit|refund)/i.test(b);
+let isExpense = /(debited|spent|paid|purchase)/i.test(b);
 
-if(credit){
+if(!isIncome && !isExpense) continue;
 
-return {
-amount: parseInt(credit[1].replace(/,/g,'')),
-type: "income",
-name: cleanMerchant(credit[3]),
-category: "INCOME"
-};
-
-}
-
-return null;
-}
-
-/* MERCHANT CLEANING */
-function cleanMerchant(n){
-
-return n
-.replace(/upi|vpa|ref|txn|id|to|at|via|paid|received|from/gi,'')
+/* merchant */
+let name = b
+.replace(/₹[\d,]+/,'')
+.replace(/credited|debited|received|spent|paid|purchase/gi,' ')
+.replace(/upi|vpa|ref|txn|id|axis bank|other|from your/gi,' ')
 .replace(/[^a-zA-Z ]/g,' ')
 .replace(/\s+/g,' ')
 .trim()
@@ -212,9 +193,21 @@ return n
 .join(' ')
 .slice(0,25);
 
+if(!name) name="UNKNOWN";
+
+return {
+amount,
+type: isIncome ? "income" : "expense",
+name,
+category: categorize(name)
+};
+
 }
 
-/* CATEGORY SYSTEM */
+return null;
+}
+
+/* CATEGORY */
 function categorize(name){
 
 name = name.toLowerCase();
@@ -240,7 +233,7 @@ return true;
 
 }
 
-/* RENDER UI */
+/* RENDER */
 function render(){
 
 let inc=0, exp=0;
