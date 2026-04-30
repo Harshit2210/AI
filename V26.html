@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finance Pro</title>
+
+<script src="https://apis.google.com/js/api.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:system-ui;}
+body{background:#0a0f2c;color:white;}
+
+.topbar{display:flex;align-items:center;padding:15px;}
+.title{font-size:24px;font-weight:700;}
+.btn{margin-left:10px;padding:8px 14px;border:none;border-radius:10px;background:#1e2a5a;color:white;}
+.status{margin-left:auto;font-size:13px;}
+
+.card{margin:15px;padding:15px;border-radius:15px;background:#1b2a6b;}
+.amount{font-size:32px;margin-top:8px;}
+
+.txn{display:flex;justify-content:space-between;padding:10px;border-bottom:1px solid #2a3a7a;}
+.income{color:#00e676;}
+.expense{color:#ff5252;}
+
+.search{margin:15px;width:calc(100% - 30px);padding:10px;border-radius:10px;border:none;background:#111842;color:white;}
+</style>
+</head>
+
+<body>
+
+<div class="topbar">
+<div class="title">Finance Pro</div>
+<button class="btn" id="authBtn">Connect Gmail</button>
+<div class="status" id="status">Booting...</div>
+</div>
+
+<input class="search" id="search" placeholder="Search">
+
+<div class="card">
+Net Flow
+<div class="amount" id="net">₹0</div>
+</div>
+
+<div class="card" id="insights"></div>
+
+<div id="list"></div>
+
+<script>
+
+const CLIENT_ID="294448907552-42vl2af953es0vo0i44t9a0d5nbttg0i44t9a0d5nbttg0b.apps.googleusercontent.com";
+const SCOPES="https://www.googleapis.com/auth/gmail.readonly";
+
+let tokenClient;
+let accessToken=null;
+let transactions=[];
+let engineLock=false;
+
+/* UI */
+
+function updateStatus(s){
+document.getElementById("status").innerText=s;
+}
+
+function updateUI(){
+let income=0,expense=0;
+let merchantMap={};
+
+transactions.forEach(t=>{
+if(t.type==="income") income+=t.amount;
+else expense+=t.amount;
+
+merchantMap[t.name]=(merchantMap[t.name]||0)+t.amount;
+});
+
+let top=Object.keys(merchantMap).sort((a,b)=>merchantMap[b]-merchantMap[a])[0]||"-";
+
+document.getElementById("net").innerText="₹"+(income-expense);
+document.getElementById("insights").innerHTML=
+"Income ₹"+income+"<br>Expense ₹"+expense+"<br>Txns "+transactions.length+"<br>Top "+top;
+
+render(transactions);
+}
+
+function render(data){
+let list=document.getElementById("list");
+list.innerHTML="";
+
+data.forEach(t=>{
+let div=document.createElement("div");
+div.className="txn";
+div.innerHTML=
+"<span>"+t.name+"</span>"+
+"<span class='"+(t.type==="income"?"income":"expense")+"'>₹"+t.amount+"</span>";
+list.appendChild(div);
+});
+}
+
+/* SEARCH */
+
+document.getElementById("search").oninput=(e)=>{
+let q=e.target.value.toLowerCase();
+render(transactions.filter(t=>
+t.name.toLowerCase().includes(q) ||
+t.amount.toString().includes(q)
+));
+};
+
+/* PARSER */
+
+function parseTransaction(text){
+
+text=text.toLowerCase();
+
+if(!text.includes("credited") && !text.includes("debited") && !text.includes("spent")) return null;
+
+let amt=text.match(/(?:rs\.?|₹|inr)\s?([0-9,]+)/i);
+if(!amt) return null;
+
+let amount=parseInt(amt[1].replace(/,/g,""));
+let type=text.includes("credited")?"income":"expense";
+
+let name="Unknown";
+
+let upi=text.match(/to\s([a-z0-9@.\- ]+)/i);
+if(upi) name=upi[1];
+
+let card=text.match(/at\s([a-z0-9 .\-]+)/i);
+if(card) name=card[1];
+
+let from=text.match(/from\s([a-z0-9 .\-]+)/i);
+if(from) name=from[1];
+
+return {amount,type,name:name.toUpperCase()};
+}
+
+/* AUTH */
+
+function initGoogle(){
+
+tokenClient=google.accounts.oauth2.initTokenClient({
+client_id:CLIENT_ID,
+scope:SCOPES,
+callback:(res)=>{
+if(res.error){updateStatus("Auth failed");return;}
+accessToken=res.access_token;
+updateStatus("Connected");
+safeStart();
+}
+});
+
+updateStatus("Auth Ready");
+}
+
+/* ENGINE */
+
+async function safeStart(){
+if(engineLock) return;
+engineLock=true;
+
+try{
+await scan();
+engineLock=false;
+}catch(e){
+engineLock=false;
+updateStatus("Retry");
+}
+}
+
+async function scan(){
+
+updateStatus("Scanning...");
+
+let res=await fetch(
+"https://gmail.googleapis.com/gmail/v1/users/me/messages?q=from:(hdfc OR icici OR sbi OR axis OR kotak) newer_than:90d",
+{headers:{Authorization:"Bearer "+accessToken}}
+);
+
+let data=await res.json();
+let msgs=data.messages||[];
+
+transactions=[];
+
+for(let m of msgs.slice(0,80)){
+let r=await fetch(
+"https://gmail.googleapis.com/gmail/v1/users/me/messages/"+m.id,
+{headers:{Authorization:"Bearer "+accessToken}}
+);
+let d=await r.json();
+let txn=parseTransaction(JSON.stringify(d));
+if(txn) transactions.push(txn);
+}
+
+updateUI();
+updateStatus("Done");
+}
+
+/* BOOT */
+
+function boot(){
+
+let tries=0;
+
+let interval=setInterval(()=>{
+
+tries++;
+
+if(window.google && window.gapi){
+clearInterval(interval);
+initGoogle();
+}
+
+if(tries>40){
+clearInterval(interval);
+updateStatus("Retry");
+}
+
+},250);
+
+}
+
+window.onload=()=>{
+boot();
+};
+
+/* BUTTON */
+
+document.getElementById("authBtn").onclick=()=>{
+
+if(!tokenClient){
+boot();
+return;
+}
+
+tokenClient.requestAccessToken();
+
+};
+
+</script>
+
+</body>
+</html>
