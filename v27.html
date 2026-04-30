@@ -1,275 +1,231 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Finance Pro</title>
 
 <script src="https://apis.google.com/js/api.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 
 <style>
-*{margin:0;padding:0;box-sizing:border-box;font-family:system-ui;}
-body{background:#0a0f2c;color:white;}
-
-.topbar{display:flex;align-items:center;padding:15px;}
-.title{font-size:24px;font-weight:700;}
-.btn{margin-left:10px;padding:8px 14px;border:none;border-radius:10px;background:#1e2a5a;color:white;}
-.status{margin-left:auto;font-size:13px;}
-
+body{margin:0;font-family:sans-serif;background:#0b1437;color:white;}
+.top{display:flex;align-items:center;padding:15px;}
+.title{font-size:22px;font-weight:bold;}
+button{margin-left:10px;padding:8px 12px;border:none;border-radius:10px;background:#2d3d8b;color:white;}
 .card{margin:15px;padding:15px;border-radius:15px;background:#1b2a6b;}
-.amount{font-size:32px;margin-top:8px;}
-
-.txn{display:flex;justify-content:space-between;padding:10px;border-bottom:1px solid #2a3a7a;}
-.income{color:#00e676;}
-.expense{color:#ff5252;}
-
-.search{margin:15px;width:calc(100% - 30px);padding:10px;border-radius:10px;border:none;background:#111842;color:white;}
-
-/* Loader */
-#loader{
-position:fixed;
-bottom:20px;
-left:20px;
-right:20px;
-background:#1b2a6b;
-padding:12px;
-border-radius:12px;
-display:none;
-}
-
-#progressBar{
-height:100%;
-width:0%;
-background:#6f8cff;
-transition:width .3s;
-}
+.txn{padding:10px;border-bottom:1px solid #2a3a7a;display:flex;justify-content:space-between;}
+.green{color:#00e676;}
+.red{color:#ff5252;}
+#loader{position:fixed;bottom:20px;left:20px;right:20px;background:#1b2a6b;padding:10px;border-radius:10px;display:none;}
+#bar{height:5px;background:#6f8cff;width:0%;}
 </style>
 </head>
 
 <body>
 
-<div class="topbar">
+<div class="top">
 <div class="title">Finance Pro</div>
-<button class="btn" id="authBtn">Connect Gmail</button>
-<div class="status" id="status">Booting...</div>
+<button onclick="auth()">Connect Gmail</button>
+<div id="status" style="margin-left:auto;">Ready</div>
 </div>
-
-<input class="search" id="search" placeholder="Search">
 
 <div class="card">
 Net Flow
-<div class="amount" id="net">₹0</div>
+<div id="net" style="font-size:30px;">₹0</div>
 </div>
 
-<div class="card" id="insights"></div>
+<div class="card" id="ins"></div>
 
 <div id="list"></div>
 
-<!-- Loader -->
 <div id="loader">
-<div id="progressText">Loading...</div>
-<div style="height:6px;background:#111842;border-radius:6px;margin-top:8px;overflow:hidden;">
-<div id="progressBar"></div>
-</div>
+<div id="prog">Loading...</div>
+<div id="bar"></div>
 </div>
 
 <script>
 
 const CLIENT_ID="294448907552-42vl2af953es0vo0i44t9a0d5nbttg0b.apps.googleusercontent.com";
-const SCOPES="https://www.googleapis.com/auth/gmail.readonly";
 
-let tokenClient;
-let accessToken=null;
-let transactions=[];
+let tokenClient, token, txns=[];
 
-/* UI */
+function status(s){document.getElementById("status").innerText=s;}
 
-function updateStatus(s){
-document.getElementById("status").innerText=s;
+function show(){loader.style.display="block";}
+function hide(){loader.style.display="none";}
+function prog(d,t){
+document.getElementById("prog").innerText=`${d}/${t}`;
+document.getElementById("bar").style.width=(d/t*100)+"%";
 }
 
-function updateUI(){
-let income=0,expense=0;
-let merchantMap={};
+/* AUTH */
 
-transactions.forEach(t=>{
-if(t.type==="income") income+=t.amount;
-else expense+=t.amount;
-
-merchantMap[t.name]=(merchantMap[t.name]||0)+t.amount;
-});
-
-let top=Object.keys(merchantMap).sort((a,b)=>merchantMap[b]-merchantMap[a])[0]||"-";
-
-document.getElementById("net").innerText="₹"+(income-expense);
-document.getElementById("insights").innerHTML=
-"Income ₹"+income+"<br>Expense ₹"+expense+"<br>Txns "+transactions.length+"<br>Top "+top;
-
-render(transactions);
-}
-
-function render(data){
-let list=document.getElementById("list");
-list.innerHTML="";
-data.forEach(t=>{
-let div=document.createElement("div");
-div.className="txn";
-div.innerHTML=
-"<span>"+t.name+"</span>"+
-"<span class='"+(t.type==="income"?"income":"expense")+"'>₹"+t.amount+"</span>";
-list.appendChild(div);
-});
-}
-
-/* Search */
-
-document.getElementById("search").oninput=(e)=>{
-let q=e.target.value.toLowerCase();
-render(transactions.filter(t=>
-t.name.toLowerCase().includes(q) ||
-t.amount.toString().includes(q)
-));
-};
-
-/* Loader */
-
-function showLoader(){
-document.getElementById("loader").style.display="block";
-}
-
-function hideLoader(){
-document.getElementById("loader").style.display="none";
-}
-
-function updateProgress(done,total){
-let percent=Math.floor((done/total)*100);
-document.getElementById("progressText").innerText="Processing "+done+" / "+total;
-document.getElementById("progressBar").style.width=percent+"%";
-}
-
-/* Parser */
-
-function parseTransaction(text){
-
-text=text.toLowerCase();
-
-if(!text.includes("credited") && !text.includes("debited") && !text.includes("spent")) return null;
-
-let amt=text.match(/(?:rs\.?|₹|inr)\s?([0-9,]+)/i);
-if(!amt) return null;
-
-let amount=parseInt(amt[1].replace(/,/g,""));
-let type=text.includes("credited")?"income":"expense";
-
-let name="Unknown";
-
-let upi=text.match(/to\s([a-z0-9@.\- ]+)/i);
-if(upi) name=upi[1];
-
-let card=text.match(/at\s([a-z0-9 .\-]+)/i);
-if(card) name=card[1];
-
-let from=text.match(/from\s([a-z0-9 .\-]+)/i);
-if(from) name=from[1];
-
-return {amount,type,name:name.toUpperCase()};
-}
-
-/* Auth */
-
-function initGoogle(){
+function init(){
 tokenClient=google.accounts.oauth2.initTokenClient({
 client_id:CLIENT_ID,
-scope:SCOPES,
-callback:(res)=>{
-if(res.error){updateStatus("Auth failed");return;}
-accessToken=res.access_token;
-updateStatus("Connected");
+scope:"https://www.googleapis.com/auth/gmail.readonly",
+callback:(r)=>{
+token=r.access_token;
 scan();
 }
 });
-updateStatus("Auth Ready");
+status("Ready");
 }
+
+function auth(){tokenClient.requestAccessToken();}
 
 /* FAST SCAN */
 
 async function scan(){
 
-updateStatus("Scanning...");
-showLoader();
+status("Scanning...");
+show();
 
 let res=await fetch(
 "https://gmail.googleapis.com/gmail/v1/users/me/messages?q=from:(hdfc OR icici OR sbi OR axis OR kotak) newer_than:90d",
-{headers:{Authorization:"Bearer "+accessToken}}
+{headers:{Authorization:"Bearer "+token}}
 );
 
 let data=await res.json();
-let msgs=(data.messages||[]).slice(0,60);
+let msgs=(data.messages||[]).slice(0,50);
 
-transactions=[];
+txns=[];
 
-let batchSize=5;
-let total=msgs.length;
-let done=0;
+let i=0;
 
-for(let i=0;i<msgs.length;i+=batchSize){
+for(let batch=0;batch<msgs.length;batch+=5){
 
-let batch=msgs.slice(i,i+batchSize);
+let part=msgs.slice(batch,batch+5);
 
-let results=await Promise.all(
-batch.map(m=>fetchMsg(m.id).catch(()=>null))
+let results=await Promise.all(part.map(m=>getMail(m.id)));
+
+results.forEach(t=>{if(t) txns.push(t);});
+
+i+=part.length;
+prog(i,msgs.length);
+
+}
+
+/* DONE */
+
+hide();
+render();
+status("Done");
+
+}
+
+/* GET MAIL (FIXED BODY PARSE) */
+
+async function getMail(id){
+
+let r=await fetch(
+"https://gmail.googleapis.com/gmail/v1/users/me/messages/"+id+"?format=full",
+{headers:{Authorization:"Bearer "+token}}
 );
 
-results.forEach(t=>{
-if(t) transactions.push(t);
+let d=await r.json();
+
+/* extract body */
+
+let body="";
+
+try{
+let parts=d.payload.parts||[];
+for(let p of parts){
+if(p.mimeType==="text/plain"){
+body=atob(p.body.data.replace(/-/g,'+').replace(/_/g,'/'));
+break;
+}
+}
+}catch(e){}
+
+if(!body) body=JSON.stringify(d);
+
+/* parse */
+
+return parse(body);
+
+}
+
+/* CLEAN PARSER */
+
+function parse(t){
+
+t=t.toLowerCase();
+
+/* strict filter */
+if(
+!t.includes("credited") &&
+!t.includes("debited") &&
+!t.includes("spent")
+) return null;
+
+/* amount */
+let m=t.match(/(?:rs\.?|₹|inr)\s?([0-9,]+)/i);
+if(!m) return null;
+
+let amt=parseInt(m[1].replace(/,/g,""));
+
+/* type */
+let type=t.includes("credited")?"income":"expense";
+
+/* NAME FIX (NO MORE MTA) */
+
+let name="";
+
+let upi=t.match(/to\s([a-z0-9@.\- ]+)/i);
+if(upi) name=upi[1];
+
+let at=t.match(/at\s([a-z0-9 .\-]+)/i);
+if(at) name=at[1];
+
+if(!name){
+let merchant=t.match(/paid to ([a-z0-9 .\-]+)/i);
+if(merchant) name=merchant[1];
+}
+
+if(!name) return null;
+
+/* clean */
+name=name.replace(/[^a-z0-9 ]/gi,"").trim().toUpperCase();
+
+return {amount:amt,type,name};
+
+}
+
+/* UI */
+
+function render(){
+
+let inc=0,exp=0;
+
+list.innerHTML="";
+
+txns.forEach(t=>{
+
+if(t.type==="income") inc+=t.amount;
+else exp+=t.amount;
+
+let div=document.createElement("div");
+div.className="txn";
+div.innerHTML=
+`<span>${t.name}</span>
+<span class="${t.type==="income"?"green":"red"}">₹${t.amount}</span>`;
+
+list.appendChild(div);
+
 });
 
-done+=batch.length;
-updateProgress(done,total);
+net.innerText="₹"+(inc-exp);
+
+ins.innerHTML=
+`Income ₹${inc}<br>Expense ₹${exp}<br>Txns ${txns.length}`;
 
 }
 
-hideLoader();
-updateUI();
-updateStatus("Done");
+/* boot */
 
-}
-
-/* Fetch single */
-
-async function fetchMsg(id){
-let r=await fetch(
-"https://gmail.googleapis.com/gmail/v1/users/me/messages/"+id,
-{headers:{Authorization:"Bearer "+accessToken}}
-);
-let d=await r.json();
-return parseTransaction(JSON.stringify(d));
-}
-
-/* Boot */
-
-function boot(){
-let tries=0;
-let i=setInterval(()=>{
-tries++;
-if(window.google && window.gapi){
-clearInterval(i);
-initGoogle();
-}
-if(tries>40){
-clearInterval(i);
-updateStatus("Retry");
-}
-},250);
-}
-
-window.onload=boot;
-
-document.getElementById("authBtn").onclick=()=>{
-if(!tokenClient){boot();return;}
-tokenClient.requestAccessToken();
-};
+window.onload=()=>gapi.load("client",init);
 
 </script>
 
