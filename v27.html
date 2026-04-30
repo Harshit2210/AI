@@ -14,7 +14,7 @@ body{margin:0;font-family:sans-serif;background:#0b1437;color:white;}
 button{margin-left:10px;padding:8px 12px;border:none;border-radius:10px;background:#2d3d8b;color:white;cursor:pointer;}
 
 .card{margin:15px;padding:15px;border-radius:15px;background:#1b2a6b;}
-.txn{padding:12px;border-bottom:1px solid #2a3a7a;display:flex;justify-content:space-between;flex-direction:column;}
+.txn{padding:12px;border-bottom:1px solid #2a3a7a;}
 .row{display:flex;justify-content:space-between;}
 .small{font-size:12px;opacity:0.7;margin-top:3px;}
 
@@ -104,7 +104,7 @@ txns.push(txn);
 
 }
 
-/* REMOVE DUPLICATES */
+/* remove duplicates */
 txns = dedupe(txns);
 
 render();
@@ -112,7 +112,7 @@ status("Done");
 
 }
 
-/* EXTRACT ALL TEXT */
+/* EXTRACT EMAIL TEXT */
 function extractText(msg){
 
 let text="";
@@ -141,55 +141,58 @@ return text;
 
 }
 
-/* NORMALIZE BROKEN BANK TEXT */
+/* CLEAN NOISE */
 function normalize(t){
 
 return t
 .replace(/\n/g,' ')
 .replace(/\s+/g,' ')
 .replace(/(₹|inr|rs\.?)/gi,'₹')
+
+/* REMOVE AXIS JUNK */
+.replace(/block sms|blocked|customer|fraud|alert|axis bank|dear customer|important/gi,' ')
+
 .replace(/content-type:.*/gi,'')
 .replace(/content-transfer-encoding:.*/gi,'')
 .trim();
 
 }
 
-/* AI-STYLE TRANSACTION PARSER */
+/* CORE PARSER */
 function parseTransaction(t){
 
-/* merge broken fragments */
 t = t.replace(/\s{2,}/g,' ');
 
-/* debit */
+/* DEBIT */
 let debit = t.match(
-/₹\s?([\d,]+).*?(debited|spent|paid).*?(?:at|to)?\s*([a-z0-9 ]{3,})/i
+/₹\s?([\d,]+).*?(debited|spent|paid).*?(?:at|to|via)?\s*([a-z0-9 ]{3,})/i
 );
 
-/* credit */
+/* CREDIT (FIXED BLANK ISSUE) */
 let credit = t.match(
-/₹\s?([\d,]+).*?(credited|received).*?([a-z0-9 ]{3,})/i
+/₹\s?([\d,]+).*?(credited|received).*?(?:from|upi|vpa|via)?\s*\/?\s*([a-z0-9 ]{3,})/i
 );
 
 if(debit){
-let name = cleanMerchant(debit[3]);
 
 return {
 amount: parseInt(debit[1].replace(/,/g,'')),
 type: "expense",
-name: name,
-category: categorize(name)
+name: cleanMerchant(debit[3]),
+category: categorize(debit[3])
 };
+
 }
 
 if(credit){
-let name = cleanMerchant(credit[3]);
 
 return {
 amount: parseInt(credit[1].replace(/,/g,'')),
 type: "income",
-name: name,
+name: cleanMerchant(credit[3]),
 category: "INCOME"
 };
+
 }
 
 return null;
@@ -199,7 +202,7 @@ return null;
 function cleanMerchant(n){
 
 return n
-.replace(/upi|vpa|ref|txn|id|paid|to|at/gi,'')
+.replace(/upi|vpa|ref|txn|id|to|at|via|paid|received|from/gi,'')
 .replace(/[^a-zA-Z ]/g,' ')
 .replace(/\s+/g,' ')
 .trim()
@@ -211,13 +214,13 @@ return n
 
 }
 
-/* CATEGORY AI RULES */
+/* CATEGORY SYSTEM */
 function categorize(name){
 
 name = name.toLowerCase();
 
-if(name.match(/zomato|swiggy|restaurant|pizza|food/)) return "FOOD";
-if(name.match(/uber|ola|train|irctc|flight|fuel/)) return "TRAVEL";
+if(name.match(/zomato|swiggy|food|restaurant/)) return "FOOD";
+if(name.match(/uber|ola|irctc|train|flight|fuel/)) return "TRAVEL";
 if(name.match(/amazon|flipkart|myntra|shop/)) return "SHOPPING";
 
 return "OTHER";
@@ -237,7 +240,7 @@ return true;
 
 }
 
-/* RENDER */
+/* RENDER UI */
 function render(){
 
 let inc=0, exp=0;
