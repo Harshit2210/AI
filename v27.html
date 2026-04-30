@@ -6,7 +6,6 @@
 
 <script src="https://apis.google.com/js/api.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 body{margin:0;font-family:sans-serif;background:#0b1437;color:white;}
@@ -15,12 +14,15 @@ body{margin:0;font-family:sans-serif;background:#0b1437;color:white;}
 button{margin-left:10px;padding:8px 12px;border:none;border-radius:10px;background:#2d3d8b;color:white;}
 
 .card{margin:15px;padding:15px;border-radius:15px;background:#1b2a6b;}
-.txn{padding:10px;border-bottom:1px solid #2a3a7a;display:flex;justify-content:space-between;}
+.txn{padding:12px;border-bottom:1px solid #2a3a7a;display:flex;justify-content:space-between;}
+.name{font-weight:600;}
+.cat{font-size:11px;opacity:.6;}
 .green{color:#00e676;}
 .red{color:#ff5252;}
+
 .search{margin:15px;width:calc(100% - 30px);padding:10px;border-radius:10px;border:none;background:#111842;color:white;}
 
-#loader{position:fixed;bottom:20px;left:20px;right:20px;background:#1b2a6b;padding:10px;border-radius:10px;display:none;}
+#loader{position:fixed;bottom:20px;left:20px;right:20px;background:#1b2a6b;padding:10px;border-radius:10px;}
 #bar{height:5px;background:#6f8cff;width:0%;}
 </style>
 </head>
@@ -30,24 +32,20 @@ button{margin-left:10px;padding:8px 12px;border:none;border-radius:10px;backgrou
 <div class="top">
 <div class="title">Finance Pro X</div>
 <button onclick="auth()">Connect</button>
-<button onclick="sync()">Sync</button>
 <div id="status" style="margin-left:auto;">Ready</div>
 </div>
 
-<input class="search" id="search" placeholder="Search">
+<input class="search" id="search" placeholder="Search transactions">
 
 <div class="card">
-Net Flow
+Net Balance
 <div id="net" style="font-size:30px;">₹0</div>
 </div>
-
-<div class="card"><canvas id="catChart"></canvas></div>
-<div class="card"><canvas id="monthChart"></canvas></div>
 
 <div id="list"></div>
 
 <div id="loader">
-<div id="prog">Loading...</div>
+<div id="prog">Waiting...</div>
 <div id="bar"></div>
 </div>
 
@@ -56,228 +54,197 @@ Net Flow
 const CLIENT_ID="294448907552-42vl2af953es0vo0i44t9a0d5nbttg0b.apps.googleusercontent.com";
 
 let tokenClient, token;
-let txns = JSON.parse(localStorage.getItem("txns") || "[]");
+let txns=[];
 
-/* ===== CATEGORY ===== */
-function cat(n){
+/* CATEGORY */
+function getCat(n){
 n=n.toLowerCase();
 if(n.includes("zomato")||n.includes("swiggy")) return "Food";
 if(n.includes("uber")||n.includes("ola")) return "Travel";
 if(n.includes("amazon")||n.includes("flipkart")) return "Shopping";
-if(n.includes("fuel")||n.includes("petrol")) return "Fuel";
 return "Other";
 }
 
-/* ===== UI ===== */
+/* UI */
 function status(s){statusEl.innerText=s;}
 const statusEl=document.getElementById("status");
 
-function show(){loader.style.display="block";}
-function hide(){loader.style.display="none";}
-function prog(d,t){
-progEl.innerText=d+"/"+t;
-bar.style.width=(d/t*100)+"%";
+function prog(done,total){
+document.getElementById("prog").innerText=done+"/"+total;
+document.getElementById("bar").style.width=(done/total*100)+"%";
 }
 
-const progEl=document.getElementById("prog");
-
-/* ===== AUTH ===== */
+/* AUTH */
 function init(){
 tokenClient=google.accounts.oauth2.initTokenClient({
 client_id:CLIENT_ID,
 scope:"https://www.googleapis.com/auth/gmail.readonly",
-callback:(r)=>{token=r.access_token;scan(true);}
+callback:(r)=>{token=r.access_token;scan();}
 });
-status("Ready");
 }
+
 function auth(){tokenClient.requestAccessToken();}
 
-/* ===== SCAN ===== */
-async function scan(full=false){
+/* FAST SCAN (USING SNIPPETS) */
+async function scan(){
 
-status("Scanning...");
-show();
-
-let query = full
-? "from:alerts@axis.bank.in newer_than:90d"
-: "from:alerts@axis.bank.in newer_than:2d";
+status("Scanning fast...");
+txns=[];
 
 let res=await fetch(
-"https://gmail.googleapis.com/gmail/v1/users/me/messages?q="+query,
+"https://gmail.googleapis.com/gmail/v1/users/me/messages?q=from:alerts@axis.bank.in newer_than:90d",
 {headers:{Authorization:"Bearer "+token}}
 );
 
 let data=await res.json();
-let msgs=(data.messages||[]).slice(0,60);
+let msgs=(data.messages||[]).slice(0,80);
 
 let done=0;
 
-for(let i=0;i<msgs.length;i+=5){
+for(let m of msgs){
 
-let batch=msgs.slice(i,i+5);
+let r=await fetch(
+"https://gmail.googleapis.com/gmail/v1/users/me/messages/"+m.id+"?format=metadata",
+{headers:{Authorization:"Bearer "+token}}
+);
 
-let results=await Promise.all(batch.map(m=>getMail(m.id)));
+let d=await r.json();
 
-results.forEach(t=>{
-if(t && !exists(t)) txns.push(t);
-});
+/* USE SNIPPET (FAST) */
+let text=(d.snippet||"").toLowerCase();
 
-done+=batch.length;
+let txn=parse(text);
+
+if(txn) txns.push(txn);
+
+done++;
 prog(done,msgs.length);
 
 }
 
-localStorage.setItem("txns",JSON.stringify(txns));
-
-hide();
 render();
 status("Done");
+
+/* if low results → deep scan */
+if(txns.length<5) deepScan(msgs);
+
 }
 
-/* ===== SYNC ===== */
-function sync(){scan(false);}
+/* DEEP SCAN ONLY IF NEEDED */
+async function deepScan(msgs){
 
-/* ===== CHECK DUP ===== */
-function exists(t){
-return txns.some(x=>x.amount===t.amount && x.name===t.name);
-}
+status("Deep scan...");
 
-/* ===== MAIL ===== */
-function decode(d){
-try{return decodeURIComponent(escape(atob(d.replace(/-/g,'+').replace(/_/g,'/'))));}
-catch(e){return "";}
-}
+for(let m of msgs.slice(0,30)){
 
-function extract(p){
-let t=p.snippet||"";
-function walk(parts){
-for(let x of parts){
-if(x.body?.data) t+=" "+decode(x.body.data);
-if(x.parts) walk(x.parts);
-}}
-if(p.parts) walk(p.parts);
-return t;
-}
-
-async function getMail(id){
 let r=await fetch(
-"https://gmail.googleapis.com/gmail/v1/users/me/messages/"+id,
+"https://gmail.googleapis.com/gmail/v1/users/me/messages/"+m.id,
 {headers:{Authorization:"Bearer "+token}}
 );
+
 let d=await r.json();
-return parse(extract(d.payload||{}));
+
+let text=JSON.stringify(d).toLowerCase();
+
+let txn=parse(text);
+
+if(txn) txns.push(txn);
+
 }
 
-/* ===== PARSER ===== */
+render();
+status("Deep done");
+
+}
+
+/* STRONG PARSER */
 function parse(t){
 
-t=t.toLowerCase();
+/* debit */
+let d=t.match(/inr\s([\d,]+).*debited.*at\s(.+?)(\.|,)/i);
 
-let debit=t.match(/inr\s([\d,]+).*debited.*at\s(.+?)\./i);
-let credit=t.match(/inr\s([\d,]+).*credited.*upi.*\/([^\/]+)\//i);
+/* credit */
+let c=t.match(/inr\s([\d,]+).*credited.*\/([^\/]+)\//i);
 
-if(debit){
-return {amount:num(debit[1]),type:"expense",name:clean(debit[2]),date:new Date()};
+if(d){
+return {
+amount:num(d[1]),
+type:"expense",
+name:clean(d[2])
+};
 }
-if(credit){
-return {amount:num(credit[1]),type:"income",name:clean(credit[2]),date:new Date()};
+
+if(c){
+return {
+amount:num(c[1]),
+type:"income",
+name:clean(c[2])
+};
 }
+
 return null;
+
 }
 
 function num(n){return parseInt(n.replace(/,/g,""));}
-function clean(n){return n.replace(/[^a-z0-9 ]/gi,"").trim().toUpperCase();}
 
-/* ===== RENDER ===== */
+function clean(n){
+return n
+.replace(/[^a-z0-9 ]/gi,"")
+.replace(/\s+/g," ")
+.trim()
+.toUpperCase();
+}
+
+/* RENDER */
 function render(){
 
-let inc=0,exp=0,catMap={},monthMap={};
+let inc=0,exp=0;
 
 list.innerHTML="";
 
 txns.forEach(t=>{
 
-let c=cat(t.name);
+let cat=getCat(t.name);
 
 if(t.type==="income") inc+=t.amount;
-else{
-exp+=t.amount;
-catMap[c]=(catMap[c]||0)+t.amount;
-
-let m=new Date(t.date).getMonth();
-monthMap[m]=(monthMap[m]||0)+t.amount;
-}
+else exp+=t.amount;
 
 let div=document.createElement("div");
 div.className="txn";
+
 div.innerHTML=
-`<span>${t.name} (${c})</span>
-<span class="${t.type==="income"?"green":"red"}">₹${t.amount}</span>`;
+`<div>
+<div class="name">${t.name}</div>
+<div class="cat">${cat}</div>
+</div>
+<div class="${t.type==="income"?"green":"red"}">₹${t.amount}</div>`;
+
 list.appendChild(div);
 
 });
 
 net.innerText="₹"+(inc-exp);
 
-/* charts */
-drawChart(catMap);
-drawMonth(monthMap);
-
 }
 
-/* ===== CHARTS ===== */
-let chart1,chart2;
-
-function drawChart(data){
-
-if(chart1) chart1.destroy();
-
-chart1=new Chart(catChart,{
-type:"pie",
-data:{
-labels:Object.keys(data),
-datasets:[{data:Object.values(data)}]
-}
-});
-}
-
-function drawMonth(data){
-
-if(chart2) chart2.destroy();
-
-chart2=new Chart(monthChart,{
-type:"bar",
-data:{
-labels:["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
-datasets:[{data:Object.values(data)}]
-}
-});
-}
-
-/* ===== SEARCH ===== */
+/* SEARCH */
 search.oninput=e=>{
 let q=e.target.value.toLowerCase();
 list.innerHTML="";
 txns.filter(t=>t.name.toLowerCase().includes(q))
 .forEach(t=>{
-let d=document.createElement("div");
-d.className="txn";
-d.innerHTML=`<span>${t.name}</span><span>₹${t.amount}</span>`;
-list.appendChild(d);
+let div=document.createElement("div");
+div.className="txn";
+div.innerHTML=`<span>${t.name}</span><span>₹${t.amount}</span>`;
+list.appendChild(div);
 });
 };
 
-/* ===== PWA ===== */
-if('serviceWorker' in navigator){
-navigator.serviceWorker.register('sw.js').catch(()=>{});
-}
-
-/* ===== BOOT ===== */
-window.onload=()=>{
-gapi.load("client",init);
-render();
-};
+/* BOOT */
+window.onload=()=>gapi.load("client",init);
 
 </script>
+
 </body>
 </html>
