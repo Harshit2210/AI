@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finance Pro</title>
+
+<script src="https://apis.google.com/js/api.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<style>
+
+/* ===== RESET ===== */
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:system-ui;
+}
+
+/* ===== BODY ===== */
+body{
+background:linear-gradient(180deg,#0a0f2c,#05081a);
+color:#fff;
+}
+
+/* ===== TOPBAR ===== */
+.topbar{
+display:flex;
+align-items:center;
+padding:16px;
+gap:12px;
+}
+
+.title{
+font-size:26px;
+font-weight:700;
+background:linear-gradient(90deg,#6f8cff,#ff4ecd);
+-webkit-background-clip:text;
+-webkit-text-fill-color:transparent;
+}
+
+.btn{
+padding:10px 16px;
+border:none;
+border-radius:12px;
+background:#1e2a5a;
+color:#fff;
+cursor:pointer;
+}
+
+.status{
+margin-left:auto;
+font-size:13px;
+opacity:.8;
+}
+
+/* ===== CARD ===== */
+.card{
+margin:16px;
+padding:18px;
+border-radius:18px;
+background:linear-gradient(180deg,#1c255c,#12173d);
+box-shadow:0 10px 30px rgba(0,0,0,.3);
+}
+
+.amount{
+font-size:42px;
+font-weight:700;
+margin-top:8px;
+}
+
+/* ===== INSIGHTS ===== */
+.insight-grid{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:10px;
+margin-top:10px;
+}
+
+.insight-box{
+background:#1a214d;
+padding:10px;
+border-radius:12px;
+font-size:13px;
+}
+
+/* ===== LIST ===== */
+.list{
+margin:16px;
+}
+
+.txn{
+display:flex;
+justify-content:space-between;
+padding:12px;
+border-bottom:1px solid #27307a;
+}
+
+.income{color:#00e676;}
+.expense{color:#ff5252;}
+
+.search{
+margin:16px;
+width:calc(100% - 32px);
+padding:10px;
+border-radius:12px;
+border:none;
+background:#111842;
+color:white;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="topbar">
+
+<div class="title">Finance Pro</div>
+
+<button class="btn" id="authBtn">
+Connect Gmail
+</button>
+
+<div class="status" id="status">
+Booting...
+</div>
+
+</div>
+
+<input class="search" id="search" placeholder="Search merchant or amount">
+
+<div class="card">
+
+<div>Net Flow</div>
+<div class="amount" id="net">₹0</div>
+
+</div>
+
+<div class="card">
+
+<div>Insights</div>
+
+<div class="insight-grid">
+
+<div class="insight-box" id="incBox">
+Income ₹0
+</div>
+
+<div class="insight-box" id="expBox">
+Expense ₹0
+</div>
+
+<div class="insight-box" id="txnBox">
+Transactions 0
+</div>
+
+<div class="insight-box" id="topBox">
+Top Merchant -
+</div>
+
+</div>
+
+</div>
+
+<div class="list" id="list"></div>
+
+<script>
+
+/* ===== CONFIG ===== */
+
+const CLIENT_ID =
+"294448907552-42vl2af953es0vo0i44t9a0d5nbttg0b.apps.googleusercontent.com";
+
+const SCOPES =
+"https://www.googleapis.com/auth/gmail.readonly";
+
+/* ===== STATE ===== */
+
+let tokenClient;
+let accessToken = null;
+let transactions = [];
+let filtered = [];
+
+/* ===== UI ===== */
+
+function updateStatus(t){
+document.getElementById("status").innerText = t;
+}
+
+/* ===== SEARCH ===== */
+
+document.getElementById("search").oninput = (e)=>{
+let q = e.target.value.toLowerCase();
+
+filtered = transactions.filter(t =>
+t.name.toLowerCase().includes(q) ||
+t.amount.toString().includes(q)
+);
+
+render(filtered);
+};
+
+/* ===== RENDER ===== */
+
+function render(data = transactions){
+
+let list = document.getElementById("list");
+list.innerHTML = "";
+
+data.forEach(t=>{
+
+let div = document.createElement("div");
+div.className = "txn";
+
+div.innerHTML =
+"<span>"+t.name+"</span>" +
+"<span class='"+(t.type==="income"?"income":"expense")+"'>₹"+t.amount+"</span>";
+
+list.appendChild(div);
+
+});
+
+}
+
+/* ===== INSIGHTS ===== */
+
+function updateInsights(){
+
+let income = 0;
+let expense = 0;
+let merchantMap = {};
+
+transactions.forEach(t=>{
+
+if(t.type==="income") income += t.amount;
+else expense += t.amount;
+
+merchantMap[t.name] =
+(merchantMap[t.name] || 0) + t.amount;
+
+});
+
+let top = Object.keys(merchantMap)
+.sort((a,b)=>merchantMap[b]-merchantMap[a])[0] || "-";
+
+document.getElementById("net").innerText =
+"₹"+(income - expense);
+
+document.getElementById("incBox").innerText =
+"Income ₹"+income;
+
+document.getElementById("expBox").innerText =
+"Expense ₹"+expense;
+
+document.getElementById("txnBox").innerText =
+"Transactions "+transactions.length;
+
+document.getElementById("topBox").innerText =
+"Top "+top;
+
+}
+
+/* ===== ENGINE BOOT ===== */
+
+function boot(){
+
+let tries = 0;
+
+let interval = setInterval(()=>{
+
+tries++;
+
+if(window.google && window.gapi){
+
+clearInterval(interval);
+initGoogle();
+
+}
+
+if(tries > 40){
+
+clearInterval(interval);
+updateStatus("Retry");
+/* ===== GOOGLE INIT ===== */
+
+function initGoogle(){
+
+updateStatus("Auth Ready");
+
+tokenClient =
+google.accounts.oauth2.initTokenClient({
+
+client_id: CLIENT_ID,
+scope: SCOPES,
+
+callback: (resp)=>{
+
+if(resp.error){
+updateStatus("Auth Failed");
+return;
+}
+
+accessToken = resp.access_token;
+
+updateStatus("Connected");
+
+startScan();
+
+}
+
+});
+
+}
+
+/* ===== AUTH BUTTON ===== */
+
+document.getElementById("authBtn").onclick = ()=>{
+if(!tokenClient){
+updateStatus("Wait...");
+return;
+}
+tokenClient.requestAccessToken();
+};
+
+/* ===== MAIN SCAN ===== */
+
+async function startScan(){
+
+transactions = [];
+filtered = [];
+
+updateStatus("Scanning 90 days...");
+
+try{
+
+let msgs = await fetchMessages(
+"from:(hdfc OR icici OR sbi OR axis OR kotak) (credited OR debited OR spent OR txn) newer_than:90d"
+);
+
+await processMessages(msgs);
+
+updateInsights();
+render();
+
+updateStatus("Done");
+
+}catch(e){
+
+console.log(e);
+updateStatus("Retrying...");
+retryScan();
+
+}
+
+}
+
+/* ===== RETRY ENGINE ===== */
+
+async function retryScan(){
+
+await new Promise(r=>setTimeout(r,2000));
+
+try{
+
+let msgs = await fetchMessages(
+"from:(hdfc OR icici OR sbi OR axis OR kotak) newer_than:90d"
+);
+
+await processMessages(msgs);
+
+updateInsights();
+render();
+
+updateStatus("Recovered");
+
+}catch(e){
+
+updateStatus("Failed");
+
+}
+
+}
+
+/* ===== FETCH MESSAGE LIST ===== */
+
+async function fetchMessages(query){
+
+let res = await fetch(
+"https://gmail.googleapis.com/gmail/v1/users/me/messages?q="+encodeURIComponent(query),
+{
+headers:{Authorization:"Bearer "+accessToken}
+}
+);
+
+let data = await res.json();
+
+return data.messages || [];
+
+}
+
+/* ===== PROCESS MESSAGES ===== */
+
+async function processMessages(msgs){
+
+let count = 0;
+
+for(let m of msgs){
+
+if(count > 120) break;
+
+try{
+
+let txn = await fetchSingle(m.id);
+
+if(txn) transactions.push(txn);
+
+count++;
+
+if(count % 10 === 0)
+updateStatus("Processing "+count);
+
+}catch(e){
+continue;
+}
+
+}
+
+}
+
+/* ===== FETCH SINGLE ===== */
+
+async function fetchSingle(id){
+
+let res = await fetch(
+"https://gmail.googleapis.com/gmail/v1/users/me/messages/"+id,
+{
+headers:{Authorization:"Bearer "+accessToken}
+}
+);
+
+let data = await res.json();
+
+let text = JSON.stringify(data);
+
+return parseTransaction(text);
+
+}
+
+/* ===== PARSER (ADVANCED FIX) ===== */
+
+function parseTransaction(text){
+
+text = text.toLowerCase();
+
+/* STRICT FILTER */
+
+if(
+!text.includes("credited") &&
+!text.includes("debited") &&
+!text.includes("spent") &&
+!text.includes("withdrawn") &&
+!text.includes("payment")
+){
+return null;
+}
+
+/* AMOUNT */
+
+let amt =
+text.match(/(?:rs\.?|₹|inr)\s?([0-9,]+(\.\d+)?)/i);
+
+if(!amt) return null;
+
+let amount =
+parseFloat(amt[1].replace(/,/g,""));
+
+/* TYPE */
+
+let type = "expense";
+
+if(
+text.includes("credited") ||
+text.includes("salary") ||
+text.includes("refund")
+){
+type = "income";
+}
+
+/* NAME DETECTION (IMPROVED) */
+
+let name = "UNKNOWN";
+
+/* UPI */
+let upi =
+text.match(/to\s([a-z0-9@.\- ]{3,})/i);
+
+if(upi) name = upi[1];
+
+/* CARD */
+let card =
+text.match(/at\s([a-z0-9 .\-]{3,})/i);
+
+if(card) name = card[1];
+
+/* FROM */
+let from =
+text.match(/from\s([a-z0-9 .\-]{3,})/i);
+
+if(from) name = from[1];
+
+/* CLEANUP */
+
+name = name
+.replace(/[^a-z0-9@.\- ]/gi,"")
+.trim()
+.toUpperCase();
+
+/* FINAL CHECK */
+
+if(amount < 1) return null;
+
+return {
+amount,
+type,
+name
+};
+
+}
+/* ===== DATE SEARCH UI ===== */
+
+const dateInput = document.createElement("input");
+dateInput.type = "date";
+dateInput.style.margin = "16px";
+dateInput.style.padding = "10px";
+dateInput.style.borderRadius = "12px";
+dateInput.style.border = "none";
+dateInput.style.background = "#111842";
+dateInput.style.color = "white";
+
+dateInput.onchange = ()=>{
+if(dateInput.value){
+deepScan(dateInput.value);
+}
+};
+
+document.body.insertBefore(dateInput, document.getElementById("list"));
+
+/* ===== DEEP SCAN (OLDER THAN 90 DAYS) ===== */
+
+async function deepScan(dateStr){
+
+updateStatus("Deep scanning...");
+
+transactions = [];
+
+let after = Math.floor(new Date(dateStr).getTime()/1000);
+
+try{
+
+let msgs = await fetchMessages(
+"after:"+after+" (credited OR debited OR spent OR txn)"
+);
+
+await processMessages(msgs);
+
+updateInsights();
+render();
+
+updateStatus("Deep Scan Done");
+
+}catch(e){
+
+updateStatus("Deep Scan Failed");
+
+}
+
+}
+
+/* ===== EXPORT CSV ===== */
+
+function exportCSV(){
+
+if(transactions.length === 0){
+alert("No data");
+return;
+}
+
+let csv = "Name,Amount,Type\n";
+
+transactions.forEach(t=>{
+csv += `${t.name},${t.amount},${t.type}\n`;
+});
+
+let blob = new Blob([csv], { type: "text/csv" });
+let url = URL.createObjectURL(blob);
+
+let a = document.createElement("a");
+a.href = url;
+a.download = "finance_data.csv";
+a.click();
+
+}
+
+/* ===== SETTINGS PANEL ===== */
+
+const settingsBtn = document.createElement("button");
+settingsBtn.innerText = "⚙️";
+settingsBtn.className = "btn";
+settingsBtn.style.position = "fixed";
+settingsBtn.style.bottom = "20px";
+settingsBtn.style.right = "20px";
+
+settingsBtn.onclick = ()=>{
+
+let choice = prompt(
+"1 Clear Data\n2 Export CSV\n3 Reconnect Gmail"
+);
+
+if(choice === "1"){
+transactions = [];
+updateInsights();
+render();
+}
+
+if(choice === "2"){
+exportCSV();
+}
+
+if(choice === "3"){
+startAuth();
+}
+
+};
+
+document.body.appendChild(settingsBtn);
+
+/* ===== SMART REFRESH ===== */
+
+setInterval(()=>{
+
+if(accessToken){
+updateStatus("Auto Sync...");
+startScan();
+}
+
+}, 600000); // every 10 min
+/* ===== FAIL-SAFE ENGINE ===== */
+
+let engineLock = false;
+
+async function safeStart(){
+
+if(engineLock) return;
+engineLock = true;
+
+updateStatus("Starting...");
+
+try{
+
+await startScan();
+
+engineLock = false;
+
+}catch(e){
+
+console.log(e);
+
+engineLock = false;
+updateStatus("Recovered");
+
+}
+
+}
+
+/* ===== WATCHDOG (FREEZE FIX) ===== */
+
+let lastActivity = Date.now();
+
+setInterval(()=>{
+
+if(Date.now() - lastActivity > 15000){
+
+updateStatus("Recovering engine...");
+safeStart();
+
+}
+
+},5000);
+
+/* Track activity */
+function markActive(){
+lastActivity = Date.now();
+}
+
+/* Hook activity */
+document.addEventListener("click", markActive);
+document.addEventListener("touchstart", markActive);
+
+/* ===== NETWORK SAFETY ===== */
+
+async function safeFetch(url, options){
+
+try{
+
+let res = await fetch(url, options);
+
+if(!res.ok){
+throw new Error("Bad response");
+}
+
+return res;
+
+}catch(e){
+
+updateStatus("Network retry...");
+
+await new Promise(r=>setTimeout(r,1500));
+
+return fetch(url, options);
+
+}
+
+}
+
+/* Override fetch usage */
+
+fetchMessages = async function(query){
+
+let res = await safeFetch(
+"https://gmail.googleapis.com/gmail/v1/users/me/messages?q="+encodeURIComponent(query),
+{headers:{Authorization:"Bearer "+accessToken}}
+);
+
+let data = await res.json();
+
+return data.messages || [];
+
+};
+
+fetchSingle = async function(id){
+
+let res = await safeFetch(
+"https://gmail.googleapis.com/gmail/v1/users/me/messages/"+id,
+{headers:{Authorization:"Bearer "+accessToken}}
+);
+
+let data = await res.json();
+
+let text = JSON.stringify(data);
+
+return parseTransaction(text);
+
+};
+
+/* ===== BOOT FINAL ===== */
+
+window.onload = ()=>{
+
+boot();
+updateStatus("Ready");
+
+};
+
+/* First auth click triggers safe engine */
+
+document.getElementById("authBtn").onclick = ()=>{
+
+if(!tokenClient){
+updateStatus("Initializing...");
+boot();
+return;
+}
+
+safeStart();
+
+};
+
+/* ===== END ===== */
+
+</script>
+
+</body>
+</html>
+
+document.getElementById("authBtn").onclick = ()=>{
+location.reload();
+};
+
+}
+
+},250);
+
+}
