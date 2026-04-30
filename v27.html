@@ -51,7 +51,6 @@ const CLIENT_ID="294448907552-42vl2af953es0vo0i44t9a0d5nbttg0b.apps.googleuserco
 let tokenClient, token;
 let txns=[];
 
-/* FIXED DOM */
 const list = document.getElementById("list");
 const net = document.getElementById("net");
 
@@ -79,10 +78,10 @@ status("Ready");
 }
 
 function auth(){
-if(tokenClient) tokenClient.requestAccessToken();
+tokenClient.requestAccessToken();
 }
 
-/* SCAN (OPTIMIZED 30 ONLY) */
+/* SCAN (LIMIT 30 ONLY) */
 async function scan(){
 
 status("Scanning...");
@@ -94,8 +93,6 @@ let res = await fetch(
 );
 
 let data = await res.json();
-
-/* ✅ ONLY 30 EMAILS */
 let msgs = (data.messages||[]).slice(0,30);
 
 let done = 0;
@@ -103,13 +100,14 @@ let done = 0;
 for(let m of msgs){
 
 let r = await fetch(
-"https://gmail.googleapis.com/gmail/v1/users/me/messages/"+m.id+"?format=metadata",
+"https://gmail.googleapis.com/gmail/v1/users/me/messages/"+m.id+"?format=full",
 {headers:{Authorization:"Bearer "+token}}
 );
 
 let d = await r.json();
 
-let text = (d.snippet||"").toLowerCase();
+/* CLEAN FULL EMAIL TEXT */
+let text = extractText(d).toLowerCase();
 
 let txn = parse(text);
 
@@ -122,94 +120,63 @@ prog(done,msgs.length);
 
 }
 
-/* fallback */
-if(txns.length===0){
-status("Deep scan...");
-await deepScan(msgs);
-}
-
 render();
 status("Done");
 
 }
 
-/* DEEP SCAN (CLEAN BODY ONLY) */
-async function deepScan(msgs){
+/* EXTRACT REAL TEXT ONLY */
+function extractText(msg){
 
-for(let m of msgs.slice(0,30)){
-
-let r = await fetch(
-"https://gmail.googleapis.com/gmail/v1/users/me/messages/"+m.id+"?format=full",
-{headers:{Authorization:"Bearer "+token}}
-);
-
-let d = await r.json();
-
-let text = extractBody(d);
-
-let txn = parse(text.toLowerCase());
-
-if(txn && txn.amount > 0){
-txns.push(txn);
-}
-
-}
-
-}
-
-/* EXTRACT CLEAN EMAIL BODY */
-function extractBody(msg){
-
-let body = "";
+let text = "";
 
 function decode(data){
 return atob(data.replace(/-/g,'+').replace(/_/g,'/'));
 }
 
-function walk(parts){
-for(let p of parts){
-if(p.mimeType==="text/plain" && p.body?.data){
-body += decode(p.body.data);
+function walk(part){
+if(!part) return;
+
+if(part.mimeType === "text/plain" && part.body?.data){
+text += decode(part.body.data) + " ";
 }
-if(p.parts) walk(p.parts);
+
+if(part.mimeType === "text/html" && part.body?.data){
+text += decode(part.body.data).replace(/<[^>]*>/g,' ') + " ";
+}
+
+if(part.parts){
+part.parts.forEach(walk);
 }
 }
 
-if(msg.payload?.parts){
-walk(msg.payload.parts);
-}else if(msg.payload?.body?.data){
-body = decode(msg.payload.body.data);
-}
+walk(msg.payload);
 
-return sanitize(body);
+return sanitize(text);
 
 }
 
-/* REMOVE GARBAGE */
+/* REMOVE JUNK */
 function sanitize(t){
 
 return t
 .replace(/content-type:.*/gi,'')
 .replace(/content-transfer-encoding:.*/gi,'')
 .replace(/content-disposition:.*/gi,'')
-.replace(/htmlfilename|headersname|quoted-printable|charset/gi,'')
+.replace(/charset=[^ ]*/gi,'')
 .replace(/=\r?\n/g,'')
 .replace(/\s+/g,' ')
 .trim();
 
 }
 
-/* 🔥 FIXED PARSER */
+/* PARSER (REAL AXIS FORMAT FIX) */
 function parse(t){
 
-t = t.replace(/\s+/g,' ');
-
-/* DEBIT */
 let debit = t.match(
-/(?:inr|rs\.?)\s?([\d,]+).*?(debited|spent|paid).*?(?:at|to)\s(?:\/)?([^\/,.-]+)/i
+/(?:inr|rs\.?)\s?([\d,]+).*?(debited|spent|paid).*?(?:at|to)\s(?:upi|vpa|merchant|)?\s*\/?([^\/,.-]+)/i
 );
 
-/* CREDIT */
 let credit = t.match(
 /(?:inr|rs\.?)\s?([\d,]+).*?(credited|received).*?(?:from|upi).*?\/([^\/,.-]+)/i
 );
@@ -233,25 +200,27 @@ name: cleanName(credit[3])
 return null;
 }
 
-/* NUMBER */
 function num(n){
 return parseInt(n.replace(/,/g,""));
 }
 
-/* CLEAN MERCHANT NAME */
+/* CLEAN MERCHANT NAME (FIXED) */
 function cleanName(n){
 
 return n
-.replace(/(upi|ref|no|id|txn|transaction|payment|at|to)/gi,'')
+.replace(/upi|vpa|ref|no|id|txn|transaction|paid|to|at/gi,'')
 .replace(/[^a-zA-Z ]/g,' ')
 .replace(/\s+/g,' ')
 .trim()
 .toUpperCase()
-.slice(0,30);
+.split(' ')
+.filter(w => w.length > 2)
+.join(' ')
+.slice(0,25);
 
 }
 
-/* RENDER UI */
+/* RENDER */
 function render(){
 
 let inc=0, exp=0;
@@ -278,7 +247,7 @@ net.innerText="₹"+(inc-exp);
 
 }
 
-/* START */
+/* BOOT */
 window.onload=()=>gapi.load("client",init);
 
 </script>
