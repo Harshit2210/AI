@@ -2,20 +2,24 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Finance Pro</title>
+<title>Finance Pro X</title>
 
 <script src="https://apis.google.com/js/api.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 body{margin:0;font-family:sans-serif;background:#0b1437;color:white;}
 .top{display:flex;align-items:center;padding:15px;}
 .title{font-size:22px;font-weight:bold;}
 button{margin-left:10px;padding:8px 12px;border:none;border-radius:10px;background:#2d3d8b;color:white;}
+
 .card{margin:15px;padding:15px;border-radius:15px;background:#1b2a6b;}
 .txn{padding:10px;border-bottom:1px solid #2a3a7a;display:flex;justify-content:space-between;}
 .green{color:#00e676;}
 .red{color:#ff5252;}
+.search{margin:15px;width:calc(100% - 30px);padding:10px;border-radius:10px;border:none;background:#111842;color:white;}
+
 #loader{position:fixed;bottom:20px;left:20px;right:20px;background:#1b2a6b;padding:10px;border-radius:10px;display:none;}
 #bar{height:5px;background:#6f8cff;width:0%;}
 </style>
@@ -24,17 +28,21 @@ button{margin-left:10px;padding:8px 12px;border:none;border-radius:10px;backgrou
 <body>
 
 <div class="top">
-<div class="title">Finance Pro</div>
-<button onclick="auth()">Connect Gmail</button>
+<div class="title">Finance Pro X</div>
+<button onclick="auth()">Connect</button>
+<button onclick="sync()">Sync</button>
 <div id="status" style="margin-left:auto;">Ready</div>
 </div>
+
+<input class="search" id="search" placeholder="Search">
 
 <div class="card">
 Net Flow
 <div id="net" style="font-size:30px;">₹0</div>
 </div>
 
-<div class="card" id="ins"></div>
+<div class="card"><canvas id="catChart"></canvas></div>
+<div class="card"><canvas id="monthChart"></canvas></div>
 
 <div id="list"></div>
 
@@ -47,187 +55,229 @@ Net Flow
 
 const CLIENT_ID="294448907552-42vl2af953es0vo0i44t9a0d5nbttg0b.apps.googleusercontent.com";
 
-let tokenClient, token, txns=[];
+let tokenClient, token;
+let txns = JSON.parse(localStorage.getItem("txns") || "[]");
 
-function status(s){document.getElementById("status").innerText=s;}
+/* ===== CATEGORY ===== */
+function cat(n){
+n=n.toLowerCase();
+if(n.includes("zomato")||n.includes("swiggy")) return "Food";
+if(n.includes("uber")||n.includes("ola")) return "Travel";
+if(n.includes("amazon")||n.includes("flipkart")) return "Shopping";
+if(n.includes("fuel")||n.includes("petrol")) return "Fuel";
+return "Other";
+}
+
+/* ===== UI ===== */
+function status(s){statusEl.innerText=s;}
+const statusEl=document.getElementById("status");
 
 function show(){loader.style.display="block";}
 function hide(){loader.style.display="none";}
 function prog(d,t){
-document.getElementById("prog").innerText=`${d}/${t}`;
-document.getElementById("bar").style.width=(d/t*100)+"%";
+progEl.innerText=d+"/"+t;
+bar.style.width=(d/t*100)+"%";
 }
 
-/* AUTH */
+const progEl=document.getElementById("prog");
 
+/* ===== AUTH ===== */
 function init(){
 tokenClient=google.accounts.oauth2.initTokenClient({
 client_id:CLIENT_ID,
 scope:"https://www.googleapis.com/auth/gmail.readonly",
-callback:(r)=>{
-token=r.access_token;
-scan();
-}
+callback:(r)=>{token=r.access_token;scan(true);}
 });
 status("Ready");
 }
-
 function auth(){tokenClient.requestAccessToken();}
 
-/* FAST SCAN */
-
-async function scan(){
+/* ===== SCAN ===== */
+async function scan(full=false){
 
 status("Scanning...");
 show();
 
+let query = full
+? "from:alerts@axis.bank.in newer_than:90d"
+: "from:alerts@axis.bank.in newer_than:2d";
+
 let res=await fetch(
-"https://gmail.googleapis.com/gmail/v1/users/me/messages?q=from:(hdfc OR icici OR sbi OR axis OR kotak) newer_than:90d",
+"https://gmail.googleapis.com/gmail/v1/users/me/messages?q="+query,
 {headers:{Authorization:"Bearer "+token}}
 );
 
 let data=await res.json();
-let msgs=(data.messages||[]).slice(0,50);
+let msgs=(data.messages||[]).slice(0,60);
 
-txns=[];
+let done=0;
 
-let i=0;
+for(let i=0;i<msgs.length;i+=5){
 
-for(let batch=0;batch<msgs.length;batch+=5){
+let batch=msgs.slice(i,i+5);
 
-let part=msgs.slice(batch,batch+5);
+let results=await Promise.all(batch.map(m=>getMail(m.id)));
 
-let results=await Promise.all(part.map(m=>getMail(m.id)));
+results.forEach(t=>{
+if(t && !exists(t)) txns.push(t);
+});
 
-results.forEach(t=>{if(t) txns.push(t);});
-
-i+=part.length;
-prog(i,msgs.length);
+done+=batch.length;
+prog(done,msgs.length);
 
 }
 
-/* DONE */
+localStorage.setItem("txns",JSON.stringify(txns));
 
 hide();
 render();
 status("Done");
-
 }
 
-/* GET MAIL (FIXED BODY PARSE) */
+/* ===== SYNC ===== */
+function sync(){scan(false);}
+
+/* ===== CHECK DUP ===== */
+function exists(t){
+return txns.some(x=>x.amount===t.amount && x.name===t.name);
+}
+
+/* ===== MAIL ===== */
+function decode(d){
+try{return decodeURIComponent(escape(atob(d.replace(/-/g,'+').replace(/_/g,'/'))));}
+catch(e){return "";}
+}
+
+function extract(p){
+let t=p.snippet||"";
+function walk(parts){
+for(let x of parts){
+if(x.body?.data) t+=" "+decode(x.body.data);
+if(x.parts) walk(x.parts);
+}}
+if(p.parts) walk(p.parts);
+return t;
+}
 
 async function getMail(id){
-
 let r=await fetch(
-"https://gmail.googleapis.com/gmail/v1/users/me/messages/"+id+"?format=full",
+"https://gmail.googleapis.com/gmail/v1/users/me/messages/"+id,
 {headers:{Authorization:"Bearer "+token}}
 );
-
 let d=await r.json();
-
-/* extract body */
-
-let body="";
-
-try{
-let parts=d.payload.parts||[];
-for(let p of parts){
-if(p.mimeType==="text/plain"){
-body=atob(p.body.data.replace(/-/g,'+').replace(/_/g,'/'));
-break;
-}
-}
-}catch(e){}
-
-if(!body) body=JSON.stringify(d);
-
-/* parse */
-
-return parse(body);
-
+return parse(extract(d.payload||{}));
 }
 
-/* CLEAN PARSER */
-
+/* ===== PARSER ===== */
 function parse(t){
 
 t=t.toLowerCase();
 
-/* strict filter */
-if(
-!t.includes("credited") &&
-!t.includes("debited") &&
-!t.includes("spent")
-) return null;
+let debit=t.match(/inr\s([\d,]+).*debited.*at\s(.+?)\./i);
+let credit=t.match(/inr\s([\d,]+).*credited.*upi.*\/([^\/]+)\//i);
 
-/* amount */
-let m=t.match(/(?:rs\.?|₹|inr)\s?([0-9,]+)/i);
-if(!m) return null;
-
-let amt=parseInt(m[1].replace(/,/g,""));
-
-/* type */
-let type=t.includes("credited")?"income":"expense";
-
-/* NAME FIX (NO MORE MTA) */
-
-let name="";
-
-let upi=t.match(/to\s([a-z0-9@.\- ]+)/i);
-if(upi) name=upi[1];
-
-let at=t.match(/at\s([a-z0-9 .\-]+)/i);
-if(at) name=at[1];
-
-if(!name){
-let merchant=t.match(/paid to ([a-z0-9 .\-]+)/i);
-if(merchant) name=merchant[1];
+if(debit){
+return {amount:num(debit[1]),type:"expense",name:clean(debit[2]),date:new Date()};
+}
+if(credit){
+return {amount:num(credit[1]),type:"income",name:clean(credit[2]),date:new Date()};
+}
+return null;
 }
 
-if(!name) return null;
+function num(n){return parseInt(n.replace(/,/g,""));}
+function clean(n){return n.replace(/[^a-z0-9 ]/gi,"").trim().toUpperCase();}
 
-/* clean */
-name=name.replace(/[^a-z0-9 ]/gi,"").trim().toUpperCase();
-
-return {amount:amt,type,name};
-
-}
-
-/* UI */
-
+/* ===== RENDER ===== */
 function render(){
 
-let inc=0,exp=0;
+let inc=0,exp=0,catMap={},monthMap={};
 
 list.innerHTML="";
 
 txns.forEach(t=>{
 
+let c=cat(t.name);
+
 if(t.type==="income") inc+=t.amount;
-else exp+=t.amount;
+else{
+exp+=t.amount;
+catMap[c]=(catMap[c]||0)+t.amount;
+
+let m=new Date(t.date).getMonth();
+monthMap[m]=(monthMap[m]||0)+t.amount;
+}
 
 let div=document.createElement("div");
 div.className="txn";
 div.innerHTML=
-`<span>${t.name}</span>
+`<span>${t.name} (${c})</span>
 <span class="${t.type==="income"?"green":"red"}">₹${t.amount}</span>`;
-
 list.appendChild(div);
 
 });
 
 net.innerText="₹"+(inc-exp);
 
-ins.innerHTML=
-`Income ₹${inc}<br>Expense ₹${exp}<br>Txns ${txns.length}`;
+/* charts */
+drawChart(catMap);
+drawMonth(monthMap);
 
 }
 
-/* boot */
+/* ===== CHARTS ===== */
+let chart1,chart2;
 
-window.onload=()=>gapi.load("client",init);
+function drawChart(data){
+
+if(chart1) chart1.destroy();
+
+chart1=new Chart(catChart,{
+type:"pie",
+data:{
+labels:Object.keys(data),
+datasets:[{data:Object.values(data)}]
+}
+});
+}
+
+function drawMonth(data){
+
+if(chart2) chart2.destroy();
+
+chart2=new Chart(monthChart,{
+type:"bar",
+data:{
+labels:["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
+datasets:[{data:Object.values(data)}]
+}
+});
+}
+
+/* ===== SEARCH ===== */
+search.oninput=e=>{
+let q=e.target.value.toLowerCase();
+list.innerHTML="";
+txns.filter(t=>t.name.toLowerCase().includes(q))
+.forEach(t=>{
+let d=document.createElement("div");
+d.className="txn";
+d.innerHTML=`<span>${t.name}</span><span>₹${t.amount}</span>`;
+list.appendChild(d);
+});
+};
+
+/* ===== PWA ===== */
+if('serviceWorker' in navigator){
+navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+
+/* ===== BOOT ===== */
+window.onload=()=>{
+gapi.load("client",init);
+render();
+};
 
 </script>
-
 </body>
 </html>
