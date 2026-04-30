@@ -3,7 +3,7 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Finance Pro</title>
-<!-- Load GSI client synchronously (no async/defer) so it's ready before our script -->
+<!-- Load GSI client synchronously so it's ready before our script -->
 <script src="https://accounts.google.com/gsi/client"></script>
 <script src="https://apis.google.com/js/api.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -213,7 +213,6 @@ async function scan() {
   allTxns = [];
   document.getElementById('list').innerHTML = `<div class="loader"><div class="loader-ring"></div>Fetching emails...</div>`;
 
-  // Multiple bank senders - add more as needed
   const senders = [
     "alerts@axis.bank.in",
     "alerts@hdfcbank.net",
@@ -286,21 +285,19 @@ function parseTransaction(rawText, date) {
     .replace(/\n|\r/g, ' ')
     .replace(/\s{2,}/g, ' ');
 
-  // ── Amount ──
+  // Amount
   let amtMatch = t.match(/₹([\d,]+(?:\.\d{1,2})?)/);
   if (!amtMatch) return null;
   let amount = parseFloat(amtMatch[1].replace(/,/g,''));
   if (!amount || amount <= 0) return null;
 
-  // ── Type ──
+  // Type
   let isCredit = /(credited|credit to|received|deposit|refund|added to|reversed)/i.test(t);
   let isDebit  = /(debited|debit(ed)?|spent|paid|purchase|payment of|withdrawn|deducted|used at)/i.test(t);
   if (!isCredit && !isDebit) return null;
   let type = isCredit ? 'income' : 'expense';
 
-  // ── Merchant / Name ──
   let name = extractName(t, type);
-
   return { amount, type, name, category: categorize(name), date, dateStr: fmtDate(date) };
 }
 
@@ -308,32 +305,50 @@ function parseTransaction(rawText, date) {
 function extractName(t, type) {
   let m;
 
-  m = t.match(/Info[:\s]+UPI[\/\-\s]?([A-Za-z0-9@._&\- ]{2,40?})(?:[\/\|,\s]|$)/i);
+  // 1. UPI transaction "UPI/CR/.../MERCHANT/..." or "UPI/MERCHANT/..."
+  m = t.match(/(?:UPI|IMPS)\s*\/\s*[A-Z]{2,4}\s*\/\s*\d+\s*\/\s*([A-Za-z0-9\s&._\-]+?)\s*(?:\/|$)/i);
+  if (m) return clean(m[1]);
+
+  // 2. "Info: UPI/MERCHANT/..." after Info:
+  m = t.match(/Info\s*:\s*UPI\s*\/\s*([A-Za-z0-9@._&\- ]{2,40}?)(?:\/|,|\s|$)/i);
   if (m) return clean(m[1].split('/')[0]);
 
-  m = t.match(/VPA[:\s]+([A-Za-z0-9._-]+)@/i);
+  // 3. VPA pattern: "VPA: name@upi" or "name@okhdfcbank"
+  m = t.match(/VPA\s*:\s*([A-Za-z0-9._-]+)@/i);
   if (m) return clean(m[1]);
 
-  m = t.match(/(?:towards|at)\s+UPI[\/\-]([A-Za-z0-9@._&\- ]{2,35?})(?:[\/,\s]|$)/i);
-  if (m) return clean(m[1].split('/')[0]);
-
-  m = t.match(/towards\s+([A-Za-z][A-Za-z0-9\s&._\-]{1,35?}?)\s+(?:on\s|\d{2}[-\/])/i);
+  // 4. "to VPA name@..." / "via VPA name@..."
+  m = t.match(/(?:to|via|from)\s+VPA\s+([A-Za-z0-9._-]+)@/i);
   if (m) return clean(m[1]);
 
-  m = t.match(/(?:used at|spent at|purchase at)\s+([A-Za-z][A-Za-z0-9\s&._\-]{1,35?}?)\s+on/i);
+  // 5. "at MERCHANT on" – POS/card transactions
+  m = t.match(/(?:at|spent at|used at|purchase at|swiped at)\s+([A-Za-z0-9\s&._\-]{2,40}?)\s+on/i);
   if (m) return clean(m[1]);
 
-  if (type === 'income') {
-    m = t.match(/(?:credited.*?from|received from|transfer from|from)\s+([A-Za-z][A-Za-z0-9\s&._\-]{1,35?}?)\s+(?:on|via|to|ref|\d{2}[-\/]|$)/i);
-    if (m && m[1].length > 1) return clean(m[1]);
-  }
+  // 6. "towards ... on" (debit)
+  m = t.match(/towards\s+(?:UPI\/)?([A-Za-z0-9\s&._\-]{2,40}?)\s+(?:on|dated|for)/i);
+  if (m) return clean(m[1]);
 
-  if (type === 'expense') {
-    m = t.match(/(?:payment to|paid to|transfer to|to)\s+([A-Za-z][A-Za-z0-9\s&._\-]{1,35?}?)\s+(?:on|via|ref|\d{2}[-\/]|$)/i);
-    if (m && m[1].length > 1) return clean(m[1]);
-  }
+  // 7. NEFT/IMPS credit: "credited by", "transfer from", "received from"
+  m = t.match(/(?:credited\s+by|transfer\s+from|received\s+from|neft\s+from)\s+([A-Za-z0-9\s&._\-]{2,40}?)\s+(?:on|via|ref|a\/c|$)/i);
+  if (m) return clean(m[1]);
 
-  m = t.match(/Transaction Alert[:\-\s]+([A-Za-z0-9\s&]{3,30?}?)\s*(?:₹|\d|$)/i);
+  // 8. "to [Name] on ..." for debit
+  m = t.match(/(?:to|payment to|paid to|sent to)\s+([A-Za-z0-9\s&._\-]{2,40}?)\s+(?:on|via|ref|\d{2}[-\/])/i);
+  if (m) return clean(m[1]);
+
+  // 9. "Transaction Alert: ..." subject lines
+  m = t.match(/Transaction\s+Alert\s*[:\-]+\s*([A-Za-z0-9\s&._\-]{3,30}?)\s*(?:₹|\d|$)/i);
+  if (m) return clean(m[1]);
+
+  // 10. Axis / HDFC: "debited ... at MERCHANT ..."
+  m = t.match(/debited\s+.*?\s+at\s+([A-Za-z0-9\s&._\-]{2,40}?)\s+(?:on|dated)/i);
+  if (m) return clean(m[1]);
+  m = t.match(/credited\s+.*?\s+at\s+([A-Za-z0-9\s&._\-]{2,40}?)\s+(?:on|dated)/i);
+  if (m) return clean(m[1]);
+
+  // 11. Generic "at " before INR/on
+  m = t.match(/at\s+([A-Za-z0-9\s&._\-]{2,40}?)\s*(?:₹|INR|\.|on|$)/i);
   if (m) return clean(m[1]);
 
   return "UNKNOWN";
@@ -342,12 +357,12 @@ function extractName(t, type) {
 function clean(s) {
   if (!s) return 'UNKNOWN';
   let out = s
-    .replace(/\b(upi|vpa|ref|txn|id|neft|imps|axis|hdfc|icici|sbi|bank|alert|dear|customer|your|account|a\/c|ac|from|to|on|via|using|the|and|for)\b/gi,' ')
+    .replace(/\b(upi|vpa|ref|txn|id|neft|imps|axis|hdfc|icici|sbi|bank|alert|dear|customer|your|account|a\/c|ac|from|to|on|via|using|the|and|for|info|available|bal|is|has|been|transferred)\b/gi,' ')
     .replace(/[^A-Za-z0-9\s&@._\-]/g,' ')
     .replace(/\s+/g,' ')
     .trim()
     .toUpperCase()
-    .slice(0,28)
+    .slice(0,30)
     .trim();
   return out.length < 2 ? 'UNKNOWN' : out;
 }
@@ -431,7 +446,7 @@ function render() {
   document.getElementById('tot-exp').textContent = '₹' + fmtAmt(exp);
   let net = inc - exp;
   let netEl = document.getElementById('tot-net');
-  // FIXED: keep .s-val base class and add color class
+  // Fixed: keep .s-val base and add color class
   netEl.textContent = (net < 0 ? '-' : '') + '₹' + fmtAmt(Math.abs(net));
   netEl.className = 's-val ' + (net >= 0 ? 'green' : 'red');
 
