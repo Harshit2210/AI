@@ -51,7 +51,7 @@ const CLIENT_ID="294448907552-42vl2af953es0vo0i44t9a0d5nbttg0b.apps.googleuserco
 let tokenClient, token;
 let txns=[];
 
-/* FIXED ELEMENT REFERENCES */
+/* FIXED DOM */
 const list = document.getElementById("list");
 const net = document.getElementById("net");
 
@@ -82,7 +82,7 @@ function auth(){
 if(tokenClient) tokenClient.requestAccessToken();
 }
 
-/* FAST SCAN */
+/* SCAN (OPTIMIZED 30 ONLY) */
 async function scan(){
 
 status("Scanning...");
@@ -94,7 +94,9 @@ let res = await fetch(
 );
 
 let data = await res.json();
-let msgs = (data.messages||[]).slice(0,60);
+
+/* ✅ ONLY 30 EMAILS */
+let msgs = (data.messages||[]).slice(0,30);
 
 let done = 0;
 
@@ -107,10 +109,13 @@ let r = await fetch(
 
 let d = await r.json();
 
-let text = d.snippet ? d.snippet.toLowerCase() : "";
+let text = (d.snippet||"").toLowerCase();
 
 let txn = parse(text);
-if(txn) txns.push(txn);
+
+if(txn && txn.amount > 0 && txn.amount < 500000){
+txns.push(txn);
+}
 
 done++;
 prog(done,msgs.length);
@@ -128,10 +133,10 @@ status("Done");
 
 }
 
-/* DEEP SCAN (FIXED) */
+/* DEEP SCAN (CLEAN BODY ONLY) */
 async function deepScan(msgs){
 
-for(let m of msgs.slice(0,25)){
+for(let m of msgs.slice(0,30)){
 
 let r = await fetch(
 "https://gmail.googleapis.com/gmail/v1/users/me/messages/"+m.id+"?format=full",
@@ -143,13 +148,16 @@ let d = await r.json();
 let text = extractBody(d);
 
 let txn = parse(text.toLowerCase());
-if(txn) txns.push(txn);
 
+if(txn && txn.amount > 0){
+txns.push(txn);
 }
 
 }
 
-/* CLEAN BODY EXTRACTOR */
+}
+
+/* EXTRACT CLEAN EMAIL BODY */
 function extractBody(msg){
 
 let body = "";
@@ -160,7 +168,7 @@ return atob(data.replace(/-/g,'+').replace(/_/g,'/'));
 
 function walk(parts){
 for(let p of parts){
-if(p.mimeType === "text/plain" && p.body?.data){
+if(p.mimeType==="text/plain" && p.body?.data){
 body += decode(p.body.data);
 }
 if(p.parts) walk(p.parts);
@@ -177,31 +185,40 @@ return sanitize(body);
 
 }
 
-/* SANITIZER */
+/* REMOVE GARBAGE */
 function sanitize(t){
 
 return t
 .replace(/content-type:.*/gi,'')
 .replace(/content-transfer-encoding:.*/gi,'')
 .replace(/content-disposition:.*/gi,'')
-.replace(/htmlfilename|headersname|quoted-printable/gi,'')
+.replace(/htmlfilename|headersname|quoted-printable|charset/gi,'')
 .replace(/=\r?\n/g,'')
 .replace(/\s+/g,' ')
 .trim();
 
 }
 
-/* PARSER */
+/* 🔥 FIXED PARSER */
 function parse(t){
 
-let debit = t.match(/inr\s([\d,]+).*debited.*at\s\/?.*?\/([a-z0-9 ]+)/i);
-let credit = t.match(/inr\s([\d,]+).*credited.*upi.*\/([^\/]+)\//i);
+t = t.replace(/\s+/g,' ');
+
+/* DEBIT */
+let debit = t.match(
+/(?:inr|rs\.?)\s?([\d,]+).*?(debited|spent|paid).*?(?:at|to)\s(?:\/)?([^\/,.-]+)/i
+);
+
+/* CREDIT */
+let credit = t.match(
+/(?:inr|rs\.?)\s?([\d,]+).*?(credited|received).*?(?:from|upi).*?\/([^\/,.-]+)/i
+);
 
 if(debit){
 return {
 amount: num(debit[1]),
 type: "expense",
-name: clean(debit[2])
+name: cleanName(debit[3])
 };
 }
 
@@ -209,40 +226,46 @@ if(credit){
 return {
 amount: num(credit[1]),
 type: "income",
-name: clean(credit[2])
+name: cleanName(credit[3])
 };
 }
 
 return null;
 }
 
+/* NUMBER */
 function num(n){
 return parseInt(n.replace(/,/g,""));
 }
 
-function clean(n){
+/* CLEAN MERCHANT NAME */
+function cleanName(n){
+
 return n
-.replace(/[^a-z0-9 ]/gi,"")
-.replace(/\s+/g," ")
+.replace(/(upi|ref|no|id|txn|transaction|payment|at|to)/gi,'')
+.replace(/[^a-zA-Z ]/g,' ')
+.replace(/\s+/g,' ')
 .trim()
-.toUpperCase();
+.toUpperCase()
+.slice(0,30);
+
 }
 
-/* RENDER */
+/* RENDER UI */
 function render(){
 
-let inc = 0, exp = 0;
-list.innerHTML = "";
+let inc=0, exp=0;
+list.innerHTML="";
 
 txns.forEach(t=>{
 
-if(t.type==="income") inc += t.amount;
-else exp += t.amount;
+if(t.type==="income") inc+=t.amount;
+else exp+=t.amount;
 
-let div = document.createElement("div");
-div.className = "txn";
+let div=document.createElement("div");
+div.className="txn";
 
-div.innerHTML = `
+div.innerHTML=`
 <div class="name">${t.name}</div>
 <div class="${t.type==="income"?"green":"red"}">₹${t.amount}</div>
 `;
@@ -251,12 +274,12 @@ list.appendChild(div);
 
 });
 
-net.innerText = "₹" + (inc - exp);
+net.innerText="₹"+(inc-exp);
 
 }
 
-/* BOOT */
-window.onload = () => gapi.load("client", init);
+/* START */
+window.onload=()=>gapi.load("client",init);
 
 </script>
 
