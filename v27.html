@@ -68,6 +68,37 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .s-val.red{color:var(--red);}
 .s-val.blue{color:#64b5f6;}
 
+/* MANUAL TXN SECTION */
+.manual-wrap{
+  padding:0 16px 10px;text-align:center;
+}
+.btn-manual{
+  font-family:'Space Mono',monospace;font-size:12px;font-weight:600;
+  background:var(--card);color:var(--green);border:1px solid var(--green);
+  padding:8px 18px;border-radius:20px;cursor:pointer;transition:all 0.2s;
+}
+.btn-manual:active{transform:scale(0.96);background:rgba(0,214,143,0.08);}
+.manual-form{
+  background:var(--card);border-radius:16px;padding:14px;margin-top:8px;display:none;text-align:left;
+  border:1px solid var(--border);
+}
+.manual-form.active{display:block;}
+.manual-row{
+  display:flex;gap:8px;margin-bottom:10px;align-items:center;
+}
+.manual-row:last-child{margin-bottom:0;}
+.manual-row input, .manual-row select{
+  flex:1;background:var(--surface);border:1px solid var(--border);color:var(--text);
+  padding:8px 10px;border-radius:10px;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;
+}
+.manual-row input::placeholder{color:var(--muted);}
+.manual-row input:focus, .manual-row select:focus{border-color:var(--accent);}
+.btn-save-manual{
+  background:linear-gradient(135deg,#4f6ef7,#7b5af8);color:white;border:none;
+  padding:8px 18px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;
+  box-shadow:0 4px 12px rgba(79,110,247,0.3);width:100%;
+}
+
 /* FILTERS */
 .filters{
   display:flex;gap:8px;padding:4px 16px 14px;overflow-x:auto;
@@ -167,6 +198,23 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   </div>
 </div>
 
+<div class="manual-wrap">
+  <button class="btn-manual" onclick="toggleManual()">+ Add Transaction</button>
+  <div class="manual-form" id="manualForm">
+    <div class="manual-row">
+      <input type="number" id="manAmt" placeholder="Amount (₹)" step="0.01">
+      <select id="manType">
+        <option value="expense">Debit</option>
+        <option value="income">Credit</option>
+      </select>
+    </div>
+    <div class="manual-row">
+      <input type="text" id="manDesc" placeholder="Description (e.g. Rent, Cash)">
+    </div>
+    <button class="btn-save-manual" onclick="addManualTxn()">Save Transaction</button>
+  </div>
+</div>
+
 <div class="filters">
   <button class="f-btn active" onclick="setFilter('all',this)">All</button>
   <button class="f-btn" onclick="setFilter('income',this)">Credit</button>
@@ -191,6 +239,36 @@ let allTxns = [];
 let currentFilter = 'all';
 
 function setStatus(s) { document.getElementById('status').innerText = s; }
+
+function toggleManual() {
+  document.getElementById('manualForm').classList.toggle('active');
+}
+
+function makeId() { return 'manual_' + Date.now() + '_' + Math.random().toString(36).substr(2,6); }
+
+function addManualTxn() {
+  let amt = parseFloat(document.getElementById('manAmt').value);
+  let type = document.getElementById('manType').value;
+  let desc = document.getElementById('manDesc').value.trim();
+  if (isNaN(amt) || amt <= 0) { alert('Enter a valid amount'); return; }
+  if (!desc) { desc = type === 'income' ? 'Manual Credit' : 'Manual Debit'; }
+  let now = new Date();
+  let txn = {
+    id: makeId(),
+    amount: amt,
+    type: type,
+    name: desc.toUpperCase(),
+    category: categorize(desc),
+    date: now,
+    dateStr: fmtDate(now)
+  };
+  allTxns.unshift(txn);
+  document.getElementById('manAmt').value = '';
+  document.getElementById('manDesc').value = '';
+  document.getElementById('manualForm').classList.remove('active');
+  render();
+  setStatus(`${allTxns.length} txns`);
+}
 
 function init() {
   tokenClient = google.accounts.oauth2.initTokenClient({
@@ -297,43 +375,42 @@ function parseTransaction(rawText, date) {
   return { amount, type, name, category: categorize(name), date, dateStr: fmtDate(date) };
 }
 
-/* ── NAME EXTRACTION (handles Axis + other banks precisely) ── */
+/* ── NAME EXTRACTION (Axis + others, now accurate) ── */
+const IGNORE_WORDS = /\b(P2A|P2M|P2P|CR|DR|SBIN|HDFC|ICICI|AXIS|SBI|KOTAK|PAYMENT|REF|TXN|IMPS|NEFT|AT|UPI|VPA|INFO|ALERT|TRANSACTION|DEAR|CUSTOMER|ACCOUNT|AVAILABLE|BALANCE|FROM|TO|ON|VIA|USING|FOR|GREENWIC|OLD|ATXP|AI|BANK)\b/gi;
+
 function extractName(t, type) {
   let m;
 
-  // 1. Axis Credit: "Transaction Info: UPI/P2A/.../NAME/..."
-  m = t.match(/Transaction\s*Info\s*:\s*UPI\s*\/\s*[A-Z]+\s*\/\s*\d+\s*\/\s*([A-Za-z0-9\s]+?)\s*(?:\/|$)/i);
-  if (m) return clean(m[1]);
-  // 1b. Generic "Transaction Info: UPI/.../NAME" without P2A
-  m = t.match(/Transaction\s*Info\s*:\s*UPI\s*\/\s*(?:[A-Za-z0-9]+\/)*([A-Za-z0-9\s]+?)\s*(?:\/|$)/i);
-  if (m) return clean(m[1]);
+  // 1. Axis credit: "Transaction Info: UPI/P2A/.../MERCHANT_NAME/..."
+  m = t.match(/Transaction\s*Info\s*:\s*UPI\s*\/\s*(?:[A-Z0-9]+\/)*([A-Za-z0-9\s]+?)\s*(?:\/|$)/i);
+  if (m && !/^(P2A|P2M|P2P|CR|DR)$/i.test(m[1].trim())) return clean(m[1]);
 
-  // 2. Axis Debit: "at /MERCHANT/LOCATION/..." (debit POS/online)
+  // 2. Axis debit: "at /MERCHANT/LOCATION/..." → capture first segment after "at /"
   m = t.match(/\bat\s+\/([A-Za-z0-9\s]+?)(?:\s*\/|$)/i);
   if (m) return clean(m[1].replace(/\//g, ' '));
 
-  // 3. VPA: name@bank (UPI)
-  m = t.match(/VPA\s*:\s*([A-Za-z0-9._-]+)@/i);
+  // 3. Subject line "Transaction Alert: ..." (often contains merchant)
+  m = t.match(/Transaction\s+Alert\s*[:\-]+\s*([A-Za-z0-9\s&._\-]{3,30}?)(?:\s*\/|\s*₹|\s*\d|$)/i);
   if (m) return clean(m[1]);
 
-  // 4. "at MERCHANT on" – POS
+  // 4. VPA: name@bank (UPI)
+  m = t.match(/VPA\s*[:\-]?\s*([A-Za-z0-9._-]+)@/i);
+  if (m) return clean(m[1]);
+
+  // 5. "at MERCHANT on" – POS
   m = t.match(/(?:at|spent at|used at|purchase at|swiped at)\s+([A-Za-z0-9\s&._\-]{2,40}?)\s+on/i);
   if (m) return clean(m[1]);
 
-  // 5. "towards ... on"
+  // 6. "towards ... on"
   m = t.match(/towards\s+(?:UPI\/)?([A-Za-z0-9\s&._\-]{2,40}?)\s+(?:on|dated|for)/i);
   if (m) return clean(m[1]);
 
-  // 6. NEFT/IMPS: "credited by", "transfer from"
+  // 7. NEFT/IMPS credit
   m = t.match(/(?:credited\s+by|transfer\s+from|received\s+from|neft\s+from)\s+([A-Za-z0-9\s&._\-]{2,40}?)\s+(?:on|via|ref|a\/c|$)/i);
   if (m) return clean(m[1]);
 
-  // 7. "to [Name] on ..."
+  // 8. "to [Name] on ..."
   m = t.match(/(?:to|payment to|paid to|sent to)\s+([A-Za-z0-9\s&._\-]{2,40}?)\s+(?:on|via|ref|\d{2}[-\/])/i);
-  if (m) return clean(m[1]);
-
-  // 8. "Transaction Alert: ..."
-  m = t.match(/Transaction\s+Alert\s*[:\-]+\s*([A-Za-z0-9\s&._\-]{3,30}?)\s*(?:₹|\d|$)/i);
   if (m) return clean(m[1]);
 
   // 9. Fallback: any "at " before ₹ or INR
@@ -346,7 +423,7 @@ function extractName(t, type) {
 function clean(s) {
   if (!s) return 'UNKNOWN';
   let out = s
-    .replace(/\b(upi|vpa|ref|txn|id|neft|imps|axis|hdfc|icici|sbi|bank|alert|dear|customer|your|account|a\/c|ac|from|to|on|via|using|the|and|for|info|available|bal|is|has|been|transferred|greenwic|p2a|p2p|p2m)/gi,' ')
+    .replace(IGNORE_WORDS, ' ')
     .replace(/[^A-Za-z0-9\s&@._\-]/g,' ')
     .replace(/\s+/g,' ')
     .trim()
@@ -428,7 +505,6 @@ function render() {
     return true;
   });
 
-  // Summary (always from all)
   let inc = 0, exp = 0;
   allTxns.forEach(t => t.type === 'income' ? (inc += t.amount) : (exp += t.amount));
   document.getElementById('tot-inc').textContent = '₹' + fmtAmt(inc);
