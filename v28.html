@@ -37,7 +37,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   padding:4px 10px;border-radius:20px;border:1px solid var(--border);
   font-family:'Space Mono',monospace;
 }
-.btn-connect{
+.btn-sync{
   display:flex;align-items:center;gap:6px;
   padding:9px 16px;border:none;border-radius:22px;
   background:linear-gradient(135deg,#4f6ef7,#7b5af8);
@@ -46,27 +46,23 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   box-shadow:0 4px 15px rgba(79,110,247,0.3);
   transition:all 0.2s;
 }
-.btn-connect:active{transform:scale(0.96);opacity:0.9;}
+.btn-sync:active{transform:scale(0.96);opacity:0.9;}
 
-/* SUMMARY */
-.summary{
-  display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;
-  padding:16px 16px 10px;
+/* PROGRESS BAR */
+.progress-wrap{
+  padding:0 16px 6px;display:none;
 }
-.s-card{
-  background:var(--card);border-radius:16px;padding:14px 12px;
-  border:1px solid var(--border);text-align:center;
-  position:relative;overflow:hidden;
+.progress-wrap.active{display:block;}
+.progress-text{
+  font-size:11px;color:var(--muted);margin-bottom:4px;font-family:'Space Mono',monospace;
 }
-.s-card::before{
-  content:'';position:absolute;inset:0;opacity:0.04;
-  background:radial-gradient(circle at top right,white,transparent 70%);
+.progress-bar{
+  height:4px;background:var(--border);border-radius:2px;overflow:hidden;
 }
-.s-label{font-size:10px;font-weight:600;letter-spacing:1px;opacity:0.5;margin-bottom:8px;text-transform:uppercase;}
-.s-val{font-size:17px;font-weight:700;font-family:'Space Mono',monospace;letter-spacing:-0.5px;}
-.s-val.green{color:var(--green);}
-.s-val.red{color:var(--red);}
-.s-val.blue{color:#64b5f6;}
+.progress-fill{
+  height:100%;width:0%;background:linear-gradient(90deg,#4f6ef7,#7b5af8);
+  transition: width 0.3s ease;
+}
 
 /* MANUAL TXN SECTION */
 .manual-wrap{
@@ -177,24 +173,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 <div class="header">
   <div class="logo">AI<span>Finance</span></div>
   <div class="status-pill" id="status">Ready</div>
-  <button class="btn-connect" onclick="auth()">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-    Connect Gmail
+  <button class="btn-sync" onclick="sync()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15.36-5.64L21 10M3 22v-6h6M21 12a9 9 0 0 1-15.36 5.64L3 14"/></svg>
+    Sync
   </button>
 </div>
 
-<div class="summary">
-  <div class="s-card">
-    <div class="s-label">Credited</div>
-    <div class="s-val green" id="tot-inc">₹0</div>
-  </div>
-  <div class="s-card">
-    <div class="s-label">Debited</div>
-    <div class="s-val red" id="tot-exp">₹0</div>
-  </div>
-  <div class="s-card">
-    <div class="s-label">Net</div>
-    <div class="s-val blue" id="tot-net">₹0</div>
+<div class="progress-wrap" id="progressWrap">
+  <div class="progress-text" id="progressText">Scanning bank 0 of 6</div>
+  <div class="progress-bar">
+    <div class="progress-fill" id="progressFill"></div>
   </div>
 </div>
 
@@ -219,9 +207,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   <button class="f-btn active" onclick="setFilter('all',this)">All</button>
   <button class="f-btn" onclick="setFilter('income',this)">Credit</button>
   <button class="f-btn" onclick="setFilter('expense',this)">Debit</button>
-  <button class="f-btn" onclick="setFilter('food',this)">🍔 Food</button>
-  <button class="f-btn" onclick="setFilter('travel',this)">🚗 Travel</button>
-  <button class="f-btn" onclick="setFilter('shopping',this)">🛒 Shopping</button>
 </div>
 
 <div class="search-wrap">
@@ -229,7 +214,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 </div>
 
 <div class="txn-list" id="list">
-  <div class="empty">Connect Gmail to load your transactions</div>
+  <div class="empty">Tap Sync to load your transactions</div>
 </div>
 
 <script>
@@ -282,7 +267,14 @@ function init() {
   });
 }
 
-function auth() { tokenClient.requestAccessToken(); }
+async function sync() {
+  // If already have token, just scan; otherwise request auth
+  if (token) {
+    await scan();
+  } else {
+    tokenClient.requestAccessToken();
+  }
+}
 
 /* ── SCAN ── */
 async function scan() {
@@ -299,6 +291,16 @@ async function scan() {
     "alerts@kotak.com",
   ];
 
+  // Progress UI
+  const progressWrap = document.getElementById('progressWrap');
+  const progressText = document.getElementById('progressText');
+  const progressFill = document.getElementById('progressFill');
+  progressWrap.classList.add('active');
+  let completed = 0;
+  const total = senders.length;
+  progressText.textContent = `Scanning bank 0 of ${total}`;
+  progressFill.style.width = '0%';
+
   for (const sender of senders) {
     let res = await gmailFetch(
       `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(`from:${sender} newer_than:90d`)}&maxResults=50`
@@ -313,10 +315,14 @@ async function scan() {
         if (txn) allTxns.push({ ...txn, id: m.id });
       } catch(e) { /* skip bad messages */ }
     }
+    completed++;
+    progressText.textContent = `Scanning bank ${completed} of ${total}`;
+    progressFill.style.width = `${(completed / total) * 100}%`;
   }
 
   allTxns = dedupe(allTxns);
   allTxns.sort((a, b) => b.date - a.date);
+  progressWrap.classList.remove('active');
   render();
   setStatus(`${allTxns.length} txns`);
 }
@@ -361,7 +367,7 @@ function parseTransaction(rawText, date) {
     .replace(/\n|\r/g, ' ')
     .replace(/\s{2,}/g, ' ');
 
-  // Allow optional space after ₹ (e.g. "₹ 600.00")
+  // Allow optional space after ₹
   let amtMatch = t.match(/₹\s*([\d,]+(?:\.\d{1,2})?)/);
   if (!amtMatch) return null;
   let amount = parseFloat(amtMatch[1].replace(/,/g,''));
@@ -376,7 +382,7 @@ function parseTransaction(rawText, date) {
   return { amount, type, name, category: categorize(name), date, dateStr: fmtDate(date) };
 }
 
-/* ── NAME EXTRACTION (Axis + others, now accurate) ── */
+/* ── NAME EXTRACTION ── */
 const IGNORE_WORDS = /\b(P2A|P2M|P2P|CR|DR|SBIN|HDFC|ICICI|AXIS|SBI|KOTAK|PAYMENT|REF|TXN|IMPS|NEFT|AT|UPI|VPA|INFO|ALERT|TRANSACTION|DEAR|CUSTOMER|ACCOUNT|AVAILABLE|BALANCE|FROM|TO|ON|VIA|USING|FOR|GREENWIC|OLD|ATXP|AI|BANK)\b/gi;
 
 function extractName(t, type) {
@@ -384,15 +390,12 @@ function extractName(t, type) {
   let candidate = '';
 
   // 1. Axis credit: "Transaction Info: UPI/P2A/.../NAME/..."
-  // Skip numeric segments – look for the first alphabetic segment after a number
   m = t.match(/Transaction\s*Info\s*:\s*UPI\s*\/\s*((?:[A-Z0-9]+\/)+)([A-Za-z]{2,}[\sA-Za-z]*?)(?:\/|$)/i);
   if (m) {
-    // group 2 is the name part (must start with at least 2 letters)
     let namePart = m[2];
     if (namePart && !/^\d+$/.test(namePart)) candidate = clean(namePart);
   }
   if (!candidate) {
-    // fallback: capture everything after the last numeric segment
     m = t.match(/Transaction\s*Info\s*:\s*UPI\s*\/\s*(?:[A-Z0-9]+\/)*([A-Za-z0-9\s]+?)\s*(?:\/|$)/i);
     if (m) {
       let raw = m[1];
@@ -400,7 +403,7 @@ function extractName(t, type) {
     }
   }
 
-  // 2. Axis debit: "at /MERCHANT/LOCATION/...", capture first segment
+  // 2. Axis debit: "at /MERCHANT/LOCATION/..."
   if (!candidate) {
     m = t.match(/\bat\s+\/([A-Za-z0-9\s]+?)(?:\s*\/|$)/i);
     if (m) {
@@ -410,13 +413,13 @@ function extractName(t, type) {
     }
   }
 
-  // 3. "at MERCHANT on" – POS
+  // 3. "at MERCHANT on"
   if (!candidate) {
     m = t.match(/(?:at|spent at|used at|purchase at|swiped at)\s+([A-Za-z0-9\s&._\-]{2,40}?)\s+on/i);
     if (m) candidate = clean(m[1]);
   }
 
-  // 4. VPA: name@bank (UPI)
+  // 4. VPA
   if (!candidate) {
     m = t.match(/VPA\s*[:\-]?\s*([A-Za-z0-9._-]+)@/i);
     if (m) candidate = clean(m[1]);
@@ -428,31 +431,30 @@ function extractName(t, type) {
     if (m) candidate = clean(m[1]);
   }
 
-  // 6. NEFT/IMPS credit
+  // 6. NEFT/IMPS
   if (!candidate) {
     m = t.match(/(?:credited\s+by|transfer\s+from|received\s+from|neft\s+from)\s+([A-Za-z0-9\s&._\-]{2,40}?)\s+(?:on|via|ref|a\/c|$)/i);
     if (m) candidate = clean(m[1]);
   }
 
-  // 7. "to [Name] on ..."
+  // 7. "to [Name] on"
   if (!candidate) {
     m = t.match(/(?:to|payment to|paid to|sent to)\s+([A-Za-z0-9\s&._\-]{2,40}?)\s+(?:on|via|ref|\d{2}[-\/])/i);
     if (m) candidate = clean(m[1]);
   }
 
-  // 8. "Transaction Alert: ..."
+  // 8. Transaction Alert
   if (!candidate) {
     m = t.match(/Transaction\s+Alert\s*[:\-]+\s*([A-Za-z0-9\s&._\-]{3,30}?)(?:\s*\/|\s*₹|\s*\d|$)/i);
     if (m) candidate = clean(m[1]);
   }
 
-  // 9. Fallback: any "at " before ₹ or INR
+  // 9. Fallback "at "
   if (!candidate) {
     m = t.match(/at\s+([A-Za-z0-9\s&._\-]{2,40}?)\s*(?:₹|INR|\.|on|$)/i);
     if (m) candidate = clean(m[1]);
   }
 
-  // Final safety: if candidate is purely numeric, discard and return UNKNOWN
   if (candidate && /^\d+$/.test(candidate)) candidate = '';
 
   return candidate || "UNKNOWN";
@@ -538,23 +540,12 @@ function render() {
     if (q && !t.name.toLowerCase().includes(q) && !t.category.cat.includes(q)) return false;
     if (currentFilter === 'income') return t.type === 'income';
     if (currentFilter === 'expense') return t.type === 'expense';
-    if (['food','travel','shopping','subscription','health','salary'].includes(currentFilter))
-      return t.category.cat === currentFilter;
     return true;
   });
 
-  let inc = 0, exp = 0;
-  allTxns.forEach(t => t.type === 'income' ? (inc += t.amount) : (exp += t.amount));
-  document.getElementById('tot-inc').textContent = '₹' + fmtAmt(inc);
-  document.getElementById('tot-exp').textContent = '₹' + fmtAmt(exp);
-  let net = inc - exp;
-  let netEl = document.getElementById('tot-net');
-  netEl.textContent = (net < 0 ? '-' : '') + '₹' + fmtAmt(Math.abs(net));
-  netEl.className = 's-val ' + (net >= 0 ? 'green' : 'red');
-
   const list = document.getElementById('list');
   if (filtered.length === 0) {
-    list.innerHTML = `<div class="empty">${allTxns.length ? 'No matches found' : 'Connect Gmail to load transactions'}</div>`;
+    list.innerHTML = `<div class="empty">${allTxns.length ? 'No matches found' : 'Tap Sync to load transactions'}</div>`;
     return;
   }
 
