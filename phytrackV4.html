@@ -12,93 +12,127 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root{
-            --bg-primary:#0a0a0f;--bg-secondary:#111118;--bg-card:rgba(255,255,255,0.03);--bg-card-hover:rgba(255,255,255,0.06);
-            --border:rgba(255,255,255,0.06);--border-hover:rgba(255,255,255,0.12);
-            --text-primary:#f0f0f5;--text-secondary:rgba(255,255,255,0.5);--text-tertiary:rgba(255,255,255,0.3);
-            --accent-blue:#4d7cfe;--accent-purple:#7c5cfc;--accent-green:#34d399;--accent-orange:#fb923c;--accent-red:#f87171;--accent-cyan:#22d3ee;
-            --gradient-1:linear-gradient(135deg,#4d7cfe,#7c5cfc);--gradient-2:linear-gradient(135deg,#34d399,#22d3ee);
+            --bg-primary:#0a0a0f;--bg-secondary:#111118;--bg-sidebar:#131320;
+            --bg-card:rgba(255,255,255,0.035);--bg-card-hover:rgba(255,255,255,0.07);
+            --border:rgba(255,255,255,0.07);--border-hover:rgba(255,255,255,0.14);
+            --text-primary:#f0f0f5;--text-secondary:rgba(255,255,255,0.55);--text-tertiary:rgba(255,255,255,0.35);
+            --accent-blue:#4d7cfe;--accent-purple:#7c5cfc;--accent-green:#34d399;
+            --accent-orange:#fb923c;--accent-red:#f87171;--accent-cyan:#22d3ee;
+            --gradient-1:linear-gradient(135deg,#4d7cfe,#7c5cfc);
+            --gradient-2:linear-gradient(135deg,#34d399,#22d3ee);
             --shadow-md:0 8px 32px rgba(0,0,0,0.4);--shadow-lg:0 16px 64px rgba(0,0,0,0.5);
             --shadow-glow-blue:0 0 40px rgba(77,124,254,0.15);
             --radius-sm:12px;--radius-md:16px;--radius-lg:24px;--radius-xl:32px;
             --safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);
         }
         *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-        html{height:100%}
-        body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg-primary);color:var(--text-primary);height:100%;overflow:hidden;overscroll-behavior:none;position:fixed;width:100%}
+        html,body{height:100%;overflow:hidden}
+        body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg-primary);color:var(--text-primary);position:fixed;width:100%;overscroll-behavior:none}
         ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
 
         .bg-effects{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;overflow:hidden}
-        .bg-orb{position:absolute;border-radius:50%;filter:blur(120px);opacity:0.25}
-        .bg-orb-1{width:400px;height:400px;background:radial-gradient(circle,rgba(77,124,254,0.15),transparent 70%);top:-150px;right:-80px}
-        .bg-orb-2{width:350px;height:350px;background:radial-gradient(circle,rgba(124,92,252,0.1),transparent 70%);bottom:-100px;left:-80px}
+        .bg-orb{position:absolute;border-radius:50%;filter:blur(120px);opacity:0.2}
+        .bg-orb-1{width:350px;height:350px;background:radial-gradient(circle,rgba(77,124,254,0.2),transparent 70%);top:-120px;right:-60px}
+        .bg-orb-2{width:300px;height:300px;background:radial-gradient(circle,rgba(124,92,252,0.12),transparent 70%);bottom:-80px;left:-60px}
 
-        /* ============ LAYOUT ============ */
-        .app-layout{display:flex;height:100%;position:relative;z-index:1}
+        /*
+         * LAYOUT STRUCTURE (bulletproof stacking):
+         *
+         * .app-wrapper          (z-index: 1, contains everything)
+         *   .main-content       (z-index: 1, the main page)
+         *   .sidebar-scrim      (z-index: 2, dark overlay — INSIDE wrapper, BEFORE sidebar)
+         *   .sidebar            (z-index: 3, the actual sidebar — ALWAYS on top)
+         *   .modal-overlay(s)   (z-index: 10, modals above everything)
+         *
+         * Key: scrim is BETWEEN main content and sidebar, never on top of sidebar.
+         */
 
-        /* ============ SIDEBAR OVERLAY — NO BLUR ============ */
-        .sidebar-overlay{
+        .app-wrapper{position:relative;height:100%;z-index:1}
+
+        /* === SCRIM: dark overlay behind sidebar, NEVER on top of it === */
+        .sidebar-scrim{
             position:fixed;top:0;left:0;width:100%;height:100%;
-            background:rgba(0,0,0,0.6);
-            z-index:90;
-            opacity:0;pointer-events:none;
+            background:rgba(0,0,0,0.55);
+            z-index:2;
+            opacity:0;
+            pointer-events:none;
             transition:opacity 0.3s ease;
         }
-        .sidebar-overlay.active{opacity:1;pointer-events:auto}
+        .sidebar-scrim.visible{
+            opacity:1;
+            pointer-events:auto;
+        }
 
-        /* ============ SIDEBAR ============ */
+        /* === SIDEBAR: highest layer below modals === */
         .sidebar{
-            width:272px;height:100%;position:fixed;left:0;top:0;
-            background:#111118;
-            border-right:1px solid var(--border);
+            position:fixed;top:0;left:0;
+            width:272px;height:100%;
+            background:var(--bg-sidebar);
+            border-right:1px solid rgba(255,255,255,0.08);
             display:flex;flex-direction:column;
-            z-index:100;
+            z-index:3;
             transform:translateX(-100%);
             transition:transform 0.3s cubic-bezier(0.4,0,0.2,1);
             will-change:transform;
         }
         .sidebar.open{transform:translateX(0)}
 
-        .sidebar-header{padding:max(var(--safe-top),16px) 18px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+        .sidebar-header{padding:max(var(--safe-top),18px) 18px 14px;border-bottom:1px solid rgba(255,255,255,0.08);flex-shrink:0}
         .logo{display:flex;align-items:center;gap:12px;text-decoration:none;cursor:pointer}
         .logo-icon{width:38px;height:38px;background:var(--gradient-1);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:var(--shadow-glow-blue)}
-        .logo-text{font-family:'Space Grotesk';font-size:17px;font-weight:700;background:var(--gradient-1);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+        .logo-text{font-family:'Space Grotesk';font-size:17px;font-weight:700;background:var(--gradient-1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 
         .sidebar-nav{flex:1;padding:10px 8px;overflow-y:auto;-webkit-overflow-scrolling:touch}
         .nav-section{margin-bottom:18px}
-        .nav-section-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-tertiary);padding:0 12px;margin-bottom:5px}
+        .nav-section-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-tertiary);padding:0 14px;margin-bottom:6px}
+
         .nav-item{
-            display:flex;align-items:center;gap:11px;padding:11px 14px;border-radius:10px;
-            cursor:pointer;color:var(--text-secondary);font-size:14px;font-weight:500;
-            position:relative;margin-bottom:2px;border:1px solid transparent;
-            transition:background 0.15s;-webkit-user-select:none;user-select:none;
+            display:flex;align-items:center;gap:11px;
+            padding:12px 14px;border-radius:10px;
+            cursor:pointer;
+            color:rgba(255,255,255,0.7);
+            font-size:14px;font-weight:500;
+            position:relative;margin-bottom:2px;
+            border:1px solid transparent;
+            transition:background 0.15s,color 0.15s;
+            -webkit-user-select:none;user-select:none;
+            touch-action:manipulation;
         }
-        .nav-item:active{background:var(--bg-card-hover);transform:scale(0.98)}
-        .nav-item.active{background:rgba(77,124,254,0.1);color:var(--accent-blue);border-color:rgba(77,124,254,0.15)}
-        .nav-item.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:18px;background:var(--accent-blue);border-radius:0 4px 4px 0}
-        .nav-icon{font-size:16px;width:22px;text-align:center}
+        .nav-item:active{background:rgba(255,255,255,0.08);color:#fff}
+        .nav-item.active{
+            background:rgba(77,124,254,0.12);
+            color:var(--accent-blue);
+            border-color:rgba(77,124,254,0.2);
+        }
+        .nav-item.active::before{
+            content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);
+            width:3px;height:18px;background:var(--accent-blue);border-radius:0 4px 4px 0;
+        }
+        .nav-icon{font-size:16px;width:22px;text-align:center;flex-shrink:0}
         .nav-badge{margin-left:auto;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;min-width:20px;text-align:center}
-        .nav-badge.red{background:rgba(248,113,113,0.15);color:var(--accent-red)}
-        .nav-badge.green{background:rgba(52,211,153,0.15);color:var(--accent-green)}
-        .nav-badge.blue{background:rgba(77,124,254,0.15);color:var(--accent-blue)}
-        .nav-badge.orange{background:rgba(251,146,60,0.15);color:var(--accent-orange)}
+        .nav-badge.red{background:rgba(248,113,113,0.2);color:var(--accent-red)}
+        .nav-badge.green{background:rgba(52,211,153,0.2);color:var(--accent-green)}
+        .nav-badge.blue{background:rgba(77,124,254,0.2);color:var(--accent-blue)}
+        .nav-badge.orange{background:rgba(251,146,60,0.2);color:var(--accent-orange)}
 
-        .sidebar-footer{padding:12px;border-top:1px solid var(--border);padding-bottom:max(var(--safe-bottom),12px);flex-shrink:0}
+        .sidebar-footer{padding:12px;border-top:1px solid rgba(255,255,255,0.08);padding-bottom:max(var(--safe-bottom),12px);flex-shrink:0}
         .user-profile{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;cursor:pointer}
-        .user-profile:active{background:var(--bg-card-hover)}
+        .user-profile:active{background:rgba(255,255,255,0.06)}
         .user-avatar{width:34px;height:34px;border-radius:50%;background:var(--gradient-2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--bg-primary)}
-        .user-info h4{font-size:12px;font-weight:600}.user-info p{font-size:10px;color:var(--text-tertiary)}
+        .user-info h4{font-size:12px;font-weight:600;color:rgba(255,255,255,0.9)}.user-info p{font-size:10px;color:var(--text-tertiary)}
 
-        /* ============ MAIN ============ */
-        .main-content{flex:1;height:100%;display:flex;flex-direction:column;overflow:hidden}
+        /* === MAIN CONTENT === */
+        .main-content{height:100%;display:flex;flex-direction:column;overflow:hidden;position:relative;z-index:1}
         .top-bar{
             padding:max(var(--safe-top),8px) 14px 8px;
-            background:rgba(10,10,15,0.9);
+            background:rgba(10,10,15,0.92);
             border-bottom:1px solid var(--border);
-            display:flex;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0;z-index:10;
+            display:flex;align-items:center;justify-content:space-between;gap:8px;
+            flex-shrink:0;z-index:5;
         }
         .top-bar-left{display:flex;align-items:center;gap:8px;min-width:0;flex:1}
-        .menu-btn{background:none;border:none;color:var(--text-primary);font-size:22px;cursor:pointer;padding:8px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;min-width:40px;min-height:40px}
-        .menu-btn:active{background:var(--bg-card-hover)}
+        .menu-btn{background:none;border:none;color:var(--text-primary);font-size:22px;cursor:pointer;padding:8px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;min-width:40px;min-height:40px;touch-action:manipulation}
+        .menu-btn:active{background:rgba(255,255,255,0.08)}
         .page-title{min-width:0}
         .page-title h1{font-family:'Space Grotesk';font-size:18px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .page-title p{font-size:10px;color:var(--text-secondary);margin-top:1px}
@@ -107,31 +141,30 @@
         .search-box:focus-within{border-color:var(--accent-blue)}
         .search-box input{background:none;border:none;outline:none;color:var(--text-primary);font-size:12px;width:100%;font-family:'Inter'}
         .search-box input::placeholder{color:var(--text-tertiary)}
-        .icon-btn{width:40px;height:40px;border-radius:10px;background:var(--bg-card);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-secondary);font-size:15px;flex-shrink:0}
+        .icon-btn{width:40px;height:40px;border-radius:10px;background:var(--bg-card);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-secondary);font-size:15px;flex-shrink:0;touch-action:manipulation}
         .icon-btn:active{background:var(--bg-card-hover);transform:scale(0.95)}
 
         .content-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain}
         .content{padding:14px;padding-bottom:max(var(--safe-bottom),24px)}
 
-        /* ============ STATS ============ */
+        /* Stats */
         .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
         .stat-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px;position:relative;overflow:hidden}
         .stat-card:active{transform:scale(0.98)}
-        .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;opacity:0.7}
+        .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;opacity:0.8}
         .stat-card:nth-child(1)::before{background:var(--accent-green)}
         .stat-card:nth-child(2)::before{background:var(--accent-red)}
         .stat-card:nth-child(3)::before{background:var(--accent-blue)}
         .stat-card:nth-child(4)::before{background:var(--accent-purple)}
         .stat-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
         .stat-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px}
-        .stat-icon.green{background:rgba(52,211,153,0.1)}.stat-icon.red{background:rgba(248,113,113,0.1)}.stat-icon.blue{background:rgba(77,124,254,0.1)}.stat-icon.purple{background:rgba(124,92,252,0.1)}
+        .stat-icon.green{background:rgba(52,211,153,0.12)}.stat-icon.red{background:rgba(248,113,113,0.12)}.stat-icon.blue{background:rgba(77,124,254,0.12)}.stat-icon.purple{background:rgba(124,92,252,0.12)}
         .stat-trend{font-size:9px;font-weight:600;padding:2px 6px;border-radius:12px}
-        .stat-trend.up{color:var(--accent-green);background:rgba(52,211,153,0.1)}
-        .stat-trend.down{color:var(--accent-red);background:rgba(248,113,113,0.1)}
+        .stat-trend.up{color:var(--accent-green);background:rgba(52,211,153,0.12)}
+        .stat-trend.down{color:var(--accent-red);background:rgba(248,113,113,0.12)}
         .stat-value{font-family:'Space Grotesk';font-size:20px;font-weight:700;letter-spacing:-0.5px;margin-bottom:1px}
         .stat-label{font-size:10px;color:var(--text-secondary);font-weight:500}
 
-        /* ============ COMMON ============ */
         .view-panel{display:none}.view-panel.active{display:block}
         .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px}
         .section-title{font-family:'Space Grotesk';font-size:16px;font-weight:700}
@@ -140,40 +173,39 @@
         .patients-grid{display:grid;grid-template-columns:1fr;gap:12px}
         .patient-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:16px;cursor:pointer;overflow:hidden}
         .patient-card:active{transform:scale(0.98);background:var(--bg-card-hover)}
-        .patient-card.archived-card{opacity:0.6}
+        .patient-card.archived-card{opacity:0.55}
         .patient-card-top{display:flex;align-items:center;gap:12px;margin-bottom:12px}
         .patient-avatar{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:var(--bg-primary);flex-shrink:0}
         .patient-name{font-size:14px;font-weight:600;margin-bottom:1px}
         .patient-condition{font-size:11px;color:var(--text-tertiary)}
         .patient-due-badge{margin-left:auto;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;flex-shrink:0}
-        .patient-due-badge.clear{background:rgba(52,211,153,0.1);color:var(--accent-green);border:1px solid rgba(52,211,153,0.15)}
-        .patient-due-badge.due{background:rgba(248,113,113,0.1);color:var(--accent-red);border:1px solid rgba(248,113,113,0.15)}
-        .patient-due-badge.archived{background:rgba(255,255,255,0.05);color:var(--text-tertiary);border:1px solid var(--border)}
+        .patient-due-badge.clear{background:rgba(52,211,153,0.12);color:var(--accent-green);border:1px solid rgba(52,211,153,0.15)}
+        .patient-due-badge.due{background:rgba(248,113,113,0.12);color:var(--accent-red);border:1px solid rgba(248,113,113,0.15)}
+        .patient-due-badge.archived{background:rgba(255,255,255,0.06);color:var(--text-tertiary);border:1px solid var(--border)}
         .patient-stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px}
-        .patient-stat{text-align:center;padding:8px 4px;background:rgba(255,255,255,0.02);border-radius:8px}
+        .patient-stat{text-align:center;padding:8px 4px;background:rgba(255,255,255,0.025);border-radius:8px}
         .patient-stat-value{font-family:'Space Grotesk';font-size:14px;font-weight:700}
         .patient-stat-label{font-size:9px;color:var(--text-tertiary);margin-top:1px}
         .patient-actions{display:flex;gap:6px}
-        .patient-action-btn{flex:1;padding:10px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text-secondary);display:flex;align-items:center;justify-content:center;gap:5px;min-height:44px}
+        .patient-action-btn{flex:1;padding:10px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text-secondary);display:flex;align-items:center;justify-content:center;gap:5px;min-height:44px;touch-action:manipulation}
         .patient-action-btn:active{background:var(--bg-card-hover);transform:scale(0.97)}
         .patient-action-btn.primary{background:rgba(77,124,254,0.1);color:var(--accent-blue);border-color:rgba(77,124,254,0.2)}
 
-        /* Calendar */
         .calendar-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
         .calendar-nav{display:flex;align-items:center;gap:8px}
-        .calendar-nav-btn{width:36px;height:36px;border-radius:8px;background:var(--bg-card);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-secondary);font-size:13px}
+        .calendar-nav-btn{width:36px;height:36px;border-radius:8px;background:var(--bg-card);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-secondary);font-size:13px;touch-action:manipulation}
         .calendar-nav-btn:active{background:var(--bg-card-hover)}
         .calendar-month{font-family:'Space Grotesk';font-size:15px;font-weight:700;min-width:130px;text-align:center}
-        .calendar-today-btn{padding:7px 14px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--bg-card);color:var(--text-secondary);min-height:36px}
+        .calendar-today-btn{padding:7px 14px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--bg-card);color:var(--text-secondary);min-height:36px;touch-action:manipulation}
         .calendar-today-btn:active{background:var(--bg-card-hover)}
         .filter-select{padding:8px 28px 8px 10px;border-radius:8px;font-size:12px;background:var(--bg-card);border:1px solid var(--border);color:var(--text-primary);outline:none;font-family:'Inter';-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='rgba(255,255,255,0.3)' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;min-height:36px}
         .filter-select option{background:var(--bg-secondary)}
         .calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border);border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border)}
         .calendar-day-header{padding:8px 2px;text-align:center;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text-tertiary);background:rgba(255,255,255,0.02)}
-        .calendar-day{min-height:52px;padding:4px;background:var(--bg-primary);cursor:pointer;position:relative}
+        .calendar-day{min-height:52px;padding:4px;background:var(--bg-primary);cursor:pointer;position:relative;touch-action:manipulation}
         .calendar-day:active{background:var(--bg-card-hover)}
         .calendar-day.other-month{opacity:0.2}
-        .calendar-day.today{background:rgba(77,124,254,0.05)}
+        .calendar-day.today{background:rgba(77,124,254,0.06)}
         .calendar-day.today::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent-blue)}
         .calendar-date{font-size:10px;font-weight:600;margin-bottom:2px;color:var(--text-secondary)}
         .calendar-day.today .calendar-date{color:var(--accent-blue)}
@@ -189,7 +221,6 @@
         .legend-dot.partial{background:rgba(251,146,60,0.4);border:1px solid var(--accent-orange)}
         .legend-dot.today-l{background:rgba(77,124,254,0.4);border:1px solid var(--accent-blue)}
 
-        /* Visit Cards */
         .visit-cards{display:flex;flex-direction:column;gap:8px}
         .visit-card-item{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px;display:flex;align-items:center;gap:12px}
         .visit-card-item:active{background:var(--bg-card-hover)}
@@ -198,29 +229,25 @@
         .visit-card-meta{font-size:11px;color:var(--text-tertiary);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
         .visit-card-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0}
         .visit-card-amount{font-family:'Space Grotesk';font-size:15px;font-weight:700}
-        .visit-card-actions{display:flex;gap:4px}
 
-        .payment-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;cursor:pointer;min-height:28px}
+        .payment-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;cursor:pointer;min-height:28px;touch-action:manipulation}
         .payment-badge:active{transform:scale(0.95)}
         .payment-badge.paid{background:rgba(52,211,153,0.12);color:var(--accent-green)}
         .payment-badge.due{background:rgba(248,113,113,0.12);color:var(--accent-red)}
         .payment-badge.partial{background:rgba(251,146,60,0.12);color:var(--accent-orange)}
         .badge-dot{width:5px;height:5px;border-radius:50%}
-        .payment-badge.paid .badge-dot{background:var(--accent-green)}
-        .payment-badge.due .badge-dot{background:var(--accent-red)}
-        .payment-badge.partial .badge-dot{background:var(--accent-orange)}
+        .payment-badge.paid .badge-dot{background:var(--accent-green)}.payment-badge.due .badge-dot{background:var(--accent-red)}.payment-badge.partial .badge-dot{background:var(--accent-orange)}
         .amount{font-family:'Space Grotesk';font-weight:600}.amount.green{color:var(--accent-green)}.amount.red{color:var(--accent-red)}
-
-        .visit-action-btn{width:32px;height:32px;border-radius:8px;background:var(--bg-card);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;color:var(--text-secondary)}
+        .visit-action-btn{width:32px;height:32px;border-radius:8px;background:var(--bg-card);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;color:var(--text-secondary);touch-action:manipulation}
         .visit-action-btn:active{background:var(--bg-card-hover);transform:scale(0.95)}
 
-        /* Modal — slides from bottom on mobile */
+        /* === MODALS — z-index:10 above everything === */
         .modal-overlay{
             position:fixed;top:0;left:0;width:100%;height:100%;
             background:rgba(0,0,0,0.7);
-            z-index:200;
+            z-index:10;
             display:flex;align-items:flex-end;justify-content:center;
-            opacity:0;visibility:hidden;transition:all 0.3s ease;
+            opacity:0;visibility:hidden;transition:opacity 0.3s ease,visibility 0.3s ease;
         }
         .modal-overlay.active{opacity:1;visibility:visible}
         .modal{
@@ -236,32 +263,26 @@
         .modal-handle{width:40px;height:4px;background:rgba(255,255,255,0.2);border-radius:2px;margin:10px auto 0}
         .modal-header{padding:14px 18px 0;display:flex;align-items:center;justify-content:space-between}
         .modal-title{font-family:'Space Grotesk';font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px}
-        .modal-close{width:34px;height:34px;border-radius:50%;background:var(--bg-card);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-secondary);font-size:16px}
+        .modal-close{width:34px;height:34px;border-radius:50%;background:var(--bg-card);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-secondary);font-size:16px;touch-action:manipulation}
         .modal-close:active{background:var(--bg-card-hover)}
         .modal-body{padding:18px}
         .modal-footer{padding:0 18px 18px;padding-bottom:max(var(--safe-bottom),18px);display:flex;gap:8px;flex-wrap:wrap}
         .modal-footer .btn{flex:1;min-width:0}
-
         .form-group{margin-bottom:14px}
         .form-label{display:block;font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:5px}
-        .form-input,.form-select,.form-textarea{
-            width:100%;padding:12px 14px;background:var(--bg-card);border:1px solid var(--border);
-            border-radius:10px;color:var(--text-primary);font-family:'Inter';font-size:16px;
-            outline:none;min-height:46px;-webkit-appearance:none;
-        }
+        .form-input,.form-select,.form-textarea{width:100%;padding:12px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;color:var(--text-primary);font-family:'Inter';font-size:16px;outline:none;min-height:46px;-webkit-appearance:none}
         .form-textarea{resize:vertical;min-height:70px}
         .form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--accent-blue)}
         .form-select{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='rgba(255,255,255,0.3)' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}
         .form-select option{background:var(--bg-secondary)}
         .form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
         .payment-toggle{display:flex;gap:6px}
-        .payment-toggle-btn{flex:1;padding:12px 8px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text-secondary);text-align:center;min-height:46px}
+        .payment-toggle-btn{flex:1;padding:12px 8px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text-secondary);text-align:center;min-height:46px;touch-action:manipulation}
         .payment-toggle-btn:active{background:var(--bg-card-hover)}
-        .payment-toggle-btn.active.paid-toggle{background:rgba(52,211,153,0.1);color:var(--accent-green);border-color:rgba(52,211,153,0.3)}
-        .payment-toggle-btn.active.due-toggle{background:rgba(248,113,113,0.1);color:var(--accent-red);border-color:rgba(248,113,113,0.3)}
-        .payment-toggle-btn.active.partial-toggle{background:rgba(251,146,60,0.1);color:var(--accent-orange);border-color:rgba(251,146,60,0.3)}
-
-        .btn{padding:12px 20px;border-radius:10px;font-family:'Inter';font-size:13px;font-weight:600;cursor:pointer;border:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:46px}
+        .payment-toggle-btn.active.paid-toggle{background:rgba(52,211,153,0.12);color:var(--accent-green);border-color:rgba(52,211,153,0.3)}
+        .payment-toggle-btn.active.due-toggle{background:rgba(248,113,113,0.12);color:var(--accent-red);border-color:rgba(248,113,113,0.3)}
+        .payment-toggle-btn.active.partial-toggle{background:rgba(251,146,60,0.12);color:var(--accent-orange);border-color:rgba(251,146,60,0.3)}
+        .btn{padding:12px 20px;border-radius:10px;font-family:'Inter';font-size:13px;font-weight:600;cursor:pointer;border:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:46px;touch-action:manipulation}
         .btn:active{transform:scale(0.97)}
         .btn-primary{background:var(--gradient-1);color:white}
         .btn-secondary{background:var(--bg-card);color:var(--text-secondary);border:1px solid var(--border)}
@@ -269,23 +290,354 @@
         .btn-red{background:rgba(248,113,113,0.15);color:var(--accent-red);border:1px solid rgba(248,113,113,0.2)}
         .btn-orange{background:rgba(251,146,60,0.15);color:var(--accent-orange);border:1px solid rgba(251,146,60,0.2)}
         .btn-whatsapp{background:rgba(37,211,102,0.15);color:#25d366;border:1px solid rgba(37,211,102,0.2)}
-
         .empty-state{text-align:center;padding:40px 16px;color:var(--text-tertiary)}
         .empty-state-icon{font-size:36px;margin-bottom:8px}
         .empty-state h3{font-size:15px;font-weight:600;color:var(--text-secondary);margin-bottom:4px}
         .empty-state p{font-size:12px;margin-bottom:14px}
-        .due-highlight{background:rgba(248,113,113,0.05);border:1px solid rgba(248,113,113,0.1);border-radius:var(--radius-md);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+        .due-highlight{background:rgba(248,113,113,0.06);border:1px solid rgba(248,113,113,0.12);border-radius:var(--radius-md);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
         .due-highlight-text{font-size:11px;color:var(--accent-red);font-weight:500}
         .due-highlight-amount{font-family:'Space Grotesk';font-size:18px;font-weight:700;color:var(--accent-red)}
 
         .detail-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px}
-        .detail-stat{text-align:center;padding:10px 4px;background:rgba(255,255,255,0.02);border-radius:8px;border:1px solid var(--border)}
+        .detail-stat{text-align:center;padding:10px 4px;background:rgba(255,255,255,0.025);border-radius:8px;border:1px solid var(--border)}
         .detail-stat-value{font-family:'Space Grotesk';font-size:16px;font-weight:700}
         .detail-stat-label{font-size:9px;color:var(--text-tertiary);margin-top:1px;text-transform:uppercase}
         .detail-info{font-size:12px;margin-bottom:5px;display:flex;gap:6px}
         .detail-info-label{color:var(--text-tertiary);min-width:65px;flex-shrink:0}
         .detail-info-value{color:var(--text-secondary);word-break:break-word}
+        .pcal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;margin-top:14px}
+        .pcal-title{font-size:13px;font-weight:600}
+        .pcal-nav{display:flex;gap:6px;align-items:center}
+        .pcal-nav-btn{width:28px;height:28px;border-radius:6px;background:var(--bg-card);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:10px;color:var(--text-secondary);touch-action:manipulation}
+        .pcal-nav-btn:active{background:var(--bg-card-hover)}
+        .pcal-month{font-size:12px;font-weight:600;min-width:90px;text-align:center}
+        .pcal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:10px}
+        .pcal-day-header{text-align:center;font-size:9px;font-weight:600;color:var(--text-tertiary);padding:4px}
+        .pcal-day{aspect-ratio:1;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;cursor:pointer;touch-action:manipulation}
+        .pcal-day:active{transform:scale(1.15)}
+        .pcal-day.other{opacity:0.2}.pcal-day.today-pcal{box-shadow:inset 0 0 0 2px var(--accent-blue)}
+        .pcal-day.visited-paid{background:rgba(52,211,153,0.2);color:var(--accent-green)}
+        .pcal-day.visited-due{background:rgba(248,113,113,0.2);color:var(--accent-red)}
+        .pcal-day.visited-partial{background:rgba(251,146,60,0.2);color:var(--accent-orange)}
+        .pcal-day.no-visit{background:rgba(255,255,255,0.025);color:var(--text-tertiary)}
+        .detail-visit-list{max-height:200px;overflow-y:auto;-webkit-overflow-scrolling:touch;margin-top:10px}
+        .detail-visit-item{display:flex;align-items:center;justify-content:space-between;padding:10px;border-radius:8px;margin-bottom:3px;background:rgba(255,255,255,0.02);gap:8px}
+        .detail-visit-item:active{background:rgba(255,255,255,0.05)}
+        .detail-visit-date{font-size:12px;font-weight:500;color:var(--text-secondary)}
+        .detail-visit-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
 
+        .invoice-preview{background:#fff;color:#111;border-radius:12px;padding:20px;font-family:'Inter';overflow-x:auto}
+        .invoice-preview *{color:#111}
+        .invoice-header-row{display:flex;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #4d7cfe;gap:12px;flex-wrap:wrap}
+        .invoice-brand h2{font-family:'Space Grotesk';font-size:18px;font-weight:700;color:#4d7cfe!important}.invoice-brand p{font-size:10px;color:#666!important}
+        .invoice-number{text-align:right}.invoice-number h3{font-size:18px;font-family:'Space Grotesk';color:#4d7cfe!important}.invoice-number p{font-size:10px;color:#666!important}
+        .invoice-parties{margin-bottom:16px}.invoice-party h4{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#999!important;margin-bottom:4px}.invoice-party p{font-size:11px;line-height:1.5;color:#333!important}
+        .invoice-table{width:100%;border-collapse:collapse;margin-bottom:16px;min-width:300px}
+        .invoice-table thead th{background:#f8f9fb;padding:8px;text-align:left;font-size:9px;text-transform:uppercase;color:#666!important;border-bottom:1px solid #eee}.invoice-table thead th:last-child{text-align:right}
+        .invoice-table tbody td{padding:8px;font-size:11px;border-bottom:1px solid #f0f0f0;color:#333!important}.invoice-table tbody td:last-child{text-align:right;font-weight:600}
+        .invoice-totals{display:flex;justify-content:flex-end;margin-bottom:16px}.invoice-totals-box{min-width:160px}
+        .invoice-total-row{display:flex;justify-content:space-between;padding:4px 0;font-size:11px;color:#555!important}
+        .invoice-total-row.grand{font-size:14px;font-weight:700;color:#111!important;border-top:2px solid #4d7cfe;padding-top:8px;margin-top:4px}
+        .invoice-total-row.due-row{color:#e53e3e!important;font-weight:600}
+        .invoice-footer{text-align:center;font-size:9px;color:#999!important;padding-top:12px;border-top:1px solid #eee}
+
+        .settings-section{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:16px;margin-bottom:12px}
+        .settings-section-title{font-family:'Space Grotesk';font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+        .settings-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);gap:12px}
+        .settings-row:last-child{border-bottom:none}
+        .settings-row-label{font-size:13px;font-weight:500}.settings-row-desc{font-size:10px;color:var(--text-tertiary);margin-top:2px}
+        .checkbox-list{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+        .checkbox-item{display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;min-height:32px}
+        .checkbox-item input[type="checkbox"]{width:20px;height:20px;accent-color:var(--accent-blue);flex-shrink:0}
+
+        .toast{position:fixed;bottom:max(var(--safe-bottom),16px);left:14px;right:14px;padding:14px 18px;border-radius:14px;font-weight:600;font-size:13px;z-index:50;animation:toastIn 0.3s ease;text-align:center}
+        .toast.success{background:rgba(52,211,153,0.25);border:1px solid rgba(52,211,153,0.35);color:var(--accent-green)}
+        .toast.error{background:rgba(248,113,113,0.25);border:1px solid rgba(248,113,113,0.35);color:var(--accent-red)}
+        .toast.info{background:rgba(77,124,254,0.25);border:1px solid rgba(77,124,254,0.35);color:var(--accent-blue)}
+        @keyframes toastIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+
+        /* === DESKTOP === */
+        @media(min-width:768px){
+            html,body{overflow:auto;position:static;height:auto}
+            .main-content{margin-left:272px;height:auto}
+            .content-scroll{overflow:visible}
+            .sidebar{transform:translateX(0);background:rgba(19,19,32,0.95);backdrop-filter:blur(40px);-webkit-backdrop-filter:blur(40px)}
+            .sidebar-scrim{display:none!important}
+            .menu-btn{display:none}
+            .search-box{display:flex}
+            .top-bar{padding:12px 24px}
+            .content{padding:24px}
+            .stats-grid{grid-template-columns:repeat(4,1fr);gap:16px}
+            .stat-card{padding:20px}.stat-value{font-size:26px}.stat-icon{width:40px;height:40px;font-size:18px}
+            .stat-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-lg);border-color:var(--border-hover)}
+            .patients-grid{grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
+            .patient-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-md);border-color:var(--border-hover)}
+            .modal{border-radius:var(--radius-xl);align-self:center}.modal-overlay{align-items:center}.modal-handle{display:none}
+            .detail-stats{grid-template-columns:repeat(4,1fr)}
+            .form-input,.form-select,.form-textarea{font-size:13px;min-height:42px}
+            .payment-toggle-btn,.btn{min-height:42px}
+            .toast{left:auto;right:24px;max-width:380px}
+            .calendar-day{min-height:100px;padding:6px}.calendar-event{font-size:9px;padding:2px 4px}
+        }
+    </style>
+</head>
+<body>
+<div class="bg-effects"><div class="bg-orb bg-orb-1"></div><div class="bg-orb bg-orb-2"></div></div>
+
+<div class="app-wrapper">
+    <!-- Main content first (z:1) -->
+    <main class="main-content">
+        <div class="top-bar">
+            <div class="top-bar-left"><button class="menu-btn" onclick="openSidebar()">☰</button><div class="page-title"><h1 id="pageTitle">Dashboard</h1><p id="pageSubtitle">Overview</p></div></div>
+            <div class="top-bar-right">
+                <div class="search-box"><span style="color:var(--text-tertiary)">🔍</span><input type="text" placeholder="Search..." id="globalSearch" oninput="handleSearch(this.value)"></div>
+                <button class="icon-btn" onclick="openModal('addVisit')">📝</button>
+                <button class="icon-btn" onclick="openModal('addPatient')">➕</button>
+            </div>
+        </div>
+        <div class="content-scroll"><div class="content">
+            <div class="view-panel active" id="view-dashboard"><div class="stats-grid" id="statsGrid"></div><div id="dueAlert"></div><div class="section-header"><div class="section-title">📋 Today</div><button class="btn btn-primary" onclick="openModal('addVisit')" style="padding:8px 14px;font-size:12px">+ Log</button></div><div id="todayVisitsList"></div><div style="margin-top:18px"><div class="section-header"><div class="section-title">👥 Patients</div></div><div class="patients-grid" id="dashboardPatients"></div></div></div>
+            <div class="view-panel" id="view-patients"><div class="section-header"><div class="section-title">All Patients</div><button class="btn btn-primary" onclick="openModal('addPatient')" style="padding:8px 14px;font-size:12px">+ Add</button></div><div class="patients-grid" id="patientsGrid"></div><div class="empty-state" id="noPatientsMsg" style="display:none"><div class="empty-state-icon">👥</div><h3>No patients</h3><button class="btn btn-primary" onclick="openModal('addPatient')">+ Add</button></div></div>
+            <div class="view-panel" id="view-calendar"><div class="calendar-header"><div class="calendar-nav"><button class="calendar-nav-btn" onclick="chMo(-1)">◀</button><div class="calendar-month" id="calendarMonth"></div><button class="calendar-nav-btn" onclick="chMo(1)">▶</button><button class="calendar-today-btn" onclick="goToday()">Today</button></div><select class="filter-select" id="calendarPatientFilter" onchange="rCal()"><option value="all">All</option></select></div><div class="calendar-grid" id="calendarGrid"></div><div class="calendar-legend"><div class="legend-item"><div class="legend-dot paid"></div>Paid</div><div class="legend-item"><div class="legend-dot due"></div>Due</div><div class="legend-item"><div class="legend-dot partial"></div>Partial</div><div class="legend-item"><div class="legend-dot today-l"></div>Today</div></div></div>
+            <div class="view-panel" id="view-visits"><div class="section-header"><div class="section-title">All Visits</div><div class="section-actions"><select class="filter-select" id="visitsPatientFilter" onchange="rVL()"><option value="all">All</option></select><select class="filter-select" id="visitsStatusFilter" onchange="rVL()"><option value="all">All</option><option value="paid">Paid</option><option value="due">Due</option><option value="partial">Partial</option></select></div></div><div id="visitsListContainer"></div></div>
+            <div class="view-panel" id="view-dues"><div class="section-header"><div class="section-title">💰 Dues</div></div><div id="dueHighlightBox"></div><div id="duesList"></div></div>
+            <div class="view-panel" id="view-collected"><div class="section-header"><div class="section-title">✅ Collected</div></div><div id="collectedHighlight"></div><div id="collectedList"></div></div>
+            <div class="view-panel" id="view-invoices"><div class="section-header"><div class="section-title">🧾 Invoice</div></div><div id="invoiceCreator"></div></div>
+            <div class="view-panel" id="view-archived"><div class="section-header"><div class="section-title">📦 Archived</div></div><div class="patients-grid" id="archivedGrid"></div><div class="empty-state" id="noArchivedMsg" style="display:none"><div class="empty-state-icon">📦</div><h3>No archived patients</h3></div></div>
+            <div class="view-panel" id="view-settings"><div id="settingsContainer"></div></div>
+        </div></div>
+    </main>
+
+    <!-- Scrim second (z:2) — only covers main content -->
+    <div class="sidebar-scrim" id="scrim"></div>
+
+    <!-- Sidebar last (z:3) — always on top of scrim -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header"><a class="logo" onclick="navTo(this,'dashboard')"><div class="logo-icon">🩺</div><span class="logo-text">PhysioTracker</span></a></div>
+        <nav class="sidebar-nav">
+            <div class="nav-section"><div class="nav-section-title">Main</div>
+                <div class="nav-item active" data-view="dashboard" onclick="navTo(this,'dashboard')"><span class="nav-icon">📊</span>Dashboard</div>
+                <div class="nav-item" data-view="patients" onclick="navTo(this,'patients')"><span class="nav-icon">👥</span>Patients<span class="nav-badge blue" id="B1">0</span></div>
+                <div class="nav-item" data-view="calendar" onclick="navTo(this,'calendar')"><span class="nav-icon">📅</span>Calendar</div>
+                <div class="nav-item" data-view="visits" onclick="navTo(this,'visits')"><span class="nav-icon">🏠</span>All Visits</div>
+            </div>
+            <div class="nav-section"><div class="nav-section-title">Payments</div>
+                <div class="nav-item" data-view="dues" onclick="navTo(this,'dues')"><span class="nav-icon">💰</span>Dues<span class="nav-badge red" id="B2">0</span></div>
+                <div class="nav-item" data-view="collected" onclick="navTo(this,'collected')"><span class="nav-icon">✅</span>Collected<span class="nav-badge green" id="B3">0</span></div>
+                <div class="nav-item" {
+            margin-left: auto;
+            font-size: 10px; font-weight: 700;
+            padding: 2px 7px; border-radius: 10px;
+            min-width: 20px; text-align: center;
+        }
+        .nav-badge.red{background:rgba(248,113,113,0.2);color:var(--accent-red)}
+        .nav-badge.green{background:rgba(52,211,153,0.2);color:var(--accent-green)}
+        .nav-badge.blue{background:rgba(77,124,254,0.2);color:var(--accent-blue)}
+        .nav-badge.orange{background:rgba(251,146,60,0.2);color:var(--accent-orange)}
+
+        .sidebar-footer {
+            padding: 14px;
+            border-top: 1px solid rgba(255,255,255,0.08);
+            padding-bottom: max(var(--safe-bottom), 14px);
+            flex-shrink: 0;
+        }
+        .user-profile {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px; border-radius: 10px; cursor: pointer;
+        }
+        .user-profile:active { background: rgba(255,255,255,0.08); }
+        .user-avatar {
+            width: 34px; height: 34px; border-radius: 50%;
+            background: var(--gradient-2);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 700; color: var(--bg-primary);
+        }
+        .user-info h4 { font-size: 13px; font-weight: 600; color: #e0e0e8; }
+        .user-info p { font-size: 10px; color: rgba(255,255,255,0.4); }
+
+        /* ============ MAIN ============ */
+        .main-content {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+            z-index: 1;
+        }
+        .top-bar {
+            padding: max(var(--safe-top), 8px) 14px 8px;
+            background: rgba(10,10,15,0.92);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 8px; flex-shrink: 0; z-index: 10;
+        }
+        .top-bar-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+        .menu-btn {
+            background: none; border: none; color: var(--text-primary);
+            font-size: 22px; cursor: pointer; padding: 8px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0; min-width: 40px; min-height: 40px;
+        }
+        .menu-btn:active { background: var(--bg-card-hover); }
+        .page-title { min-width: 0; }
+        .page-title h1 { font-family:'Space Grotesk'; font-size:18px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .page-title p { font-size:10px; color:var(--text-secondary); margin-top:1px; }
+        .top-bar-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+        .search-box { display:none; align-items:center; gap:8px; background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:8px 12px; min-width:180px; }
+        .search-box:focus-within { border-color:var(--accent-blue); }
+        .search-box input { background:none; border:none; outline:none; color:var(--text-primary); font-size:12px; width:100%; font-family:'Inter'; }
+        .search-box input::placeholder { color:var(--text-tertiary); }
+        .icon-btn {
+            width:40px; height:40px; border-radius:10px; background:var(--bg-card);
+            border:1px solid var(--border); display:flex; align-items:center; justify-content:center;
+            cursor:pointer; color:var(--text-secondary); font-size:15px; flex-shrink:0;
+        }
+        .icon-btn:active { background:var(--bg-card-hover); transform:scale(0.95); }
+
+        .content-scroll { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain; }
+        .content { padding:14px; padding-bottom:max(var(--safe-bottom),24px); }
+
+        /* Stats */
+        .stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
+        .stat-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-md); padding:14px; position:relative; overflow:hidden; }
+        .stat-card:active { transform:scale(0.98); }
+        .stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; opacity:0.8; }
+        .stat-card:nth-child(1)::before{background:var(--accent-green)}
+        .stat-card:nth-child(2)::before{background:var(--accent-red)}
+        .stat-card:nth-child(3)::before{background:var(--accent-blue)}
+        .stat-card:nth-child(4)::before{background:var(--accent-purple)}
+        .stat-card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+        .stat-icon { width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:14px; }
+        .stat-icon.green{background:rgba(52,211,153,0.12)}.stat-icon.red{background:rgba(248,113,113,0.12)}.stat-icon.blue{background:rgba(77,124,254,0.12)}.stat-icon.purple{background:rgba(124,92,252,0.12)}
+        .stat-trend { font-size:9px; font-weight:600; padding:2px 6px; border-radius:12px; }
+        .stat-trend.up{color:var(--accent-green);background:rgba(52,211,153,0.12)}.stat-trend.down{color:var(--accent-red);background:rgba(248,113,113,0.12)}
+        .stat-value { font-family:'Space Grotesk'; font-size:20px; font-weight:700; letter-spacing:-0.5px; margin-bottom:1px; }
+        .stat-label { font-size:10px; color:var(--text-secondary); font-weight:500; }
+
+        .view-panel{display:none}.view-panel.active{display:block}
+        .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px}
+        .section-title{font-family:'Space Grotesk';font-size:16px;font-weight:700}
+        .section-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+
+        .patients-grid{display:grid;grid-template-columns:1fr;gap:12px}
+        .patient-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:16px;cursor:pointer;overflow:hidden}
+        .patient-card:active{transform:scale(0.98);background:var(--bg-card-hover)}
+        .patient-card.archived-card{opacity:0.55}
+        .patient-card-top{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+        .patient-avatar{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:var(--bg-primary);flex-shrink:0}
+        .patient-name{font-size:14px;font-weight:600;margin-bottom:1px}
+        .patient-condition{font-size:11px;color:var(--text-tertiary)}
+        .patient-due-badge{margin-left:auto;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;flex-shrink:0}
+        .patient-due-badge.clear{background:rgba(52,211,153,0.12);color:var(--accent-green);border:1px solid rgba(52,211,153,0.18)}
+        .patient-due-badge.due{background:rgba(248,113,113,0.12);color:var(--accent-red);border:1px solid rgba(248,113,113,0.18)}
+        .patient-due-badge.archived{background:rgba(255,255,255,0.06);color:var(--text-tertiary);border:1px solid var(--border)}
+        .patient-stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px}
+        .patient-stat{text-align:center;padding:8px 4px;background:rgba(255,255,255,0.025);border-radius:8px}
+        .patient-stat-value{font-family:'Space Grotesk';font-size:14px;font-weight:700}
+        .patient-stat-label{font-size:9px;color:var(--text-tertiary);margin-top:1px}
+        .patient-actions{display:flex;gap:6px}
+        .patient-action-btn{flex:1;padding:10px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text-secondary);display:flex;align-items:center;justify-content:center;gap:5px;min-height:44px}
+        .patient-action-btn:active{background:var(--bg-card-hover);transform:scale(0.97)}
+        .patient-action-btn.primary{background:rgba(77,124,254,0.12);color:var(--accent-blue);border-color:rgba(77,124,254,0.22)}
+
+        .calendar-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+        .calendar-nav{display:flex;align-items:center;gap:8px}
+        .calendar-nav-btn{width:36px;height:36px;border-radius:8px;background:var(--bg-card);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-secondary);font-size:13px}
+        .calendar-nav-btn:active{background:var(--bg-card-hover)}
+        .calendar-month{font-family:'Space Grotesk';font-size:15px;font-weight:700;min-width:130px;text-align:center}
+        .calendar-today-btn{padding:7px 14px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--bg-card);color:var(--text-secondary);min-height:36px}
+        .filter-select{padding:8px 28px 8px 10px;border-radius:8px;font-size:12px;background:var(--bg-card);border:1px solid var(--border);color:var(--text-primary);outline:none;font-family:'Inter';-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='rgba(255,255,255,0.3)' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;min-height:36px}
+        .filter-select option{background:#1c1c28}
+        .calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border);border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border)}
+        .calendar-day-header{padding:8px 2px;text-align:center;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text-tertiary);background:rgba(255,255,255,0.025)}
+        .calendar-day{min-height:52px;padding:4px;background:var(--bg-primary);cursor:pointer;position:relative}
+        .calendar-day:active{background:var(--bg-card-hover)}
+        .calendar-day.other-month{opacity:0.2}
+        .calendar-day.today{background:rgba(77,124,254,0.06)}
+        .calendar-day.today::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent-blue)}
+        .calendar-date{font-size:10px;font-weight:600;margin-bottom:2px;color:var(--text-secondary)}
+        .calendar-day.today .calendar-date{color:var(--accent-blue)}
+        .calendar-event{padding:1px 3px;border-radius:3px;font-size:8px;font-weight:600;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+        .calendar-event.paid{background:rgba(52,211,153,0.18);color:var(--accent-green);border-left:2px solid var(--accent-green)}
+        .calendar-event.due{background:rgba(248,113,113,0.18);color:var(--accent-red);border-left:2px solid var(--accent-red)}
+        .calendar-event.partial{background:rgba(251,146,60,0.18);color:var(--accent-orange);border-left:2px solid var(--accent-orange)}
+        .calendar-legend{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap}
+        .legend-item{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-secondary)}
+        .legend-dot{width:8px;height:8px;border-radius:2px}
+        .legend-dot.paid{background:rgba(52,211,153,0.5)}.legend-dot.due{background:rgba(248,113,113,0.5)}.legend-dot.partial{background:rgba(251,146,60,0.5)}.legend-dot.today-l{background:rgba(77,124,254,0.5)}
+
+        .visit-cards{display:flex;flex-direction:column;gap:8px}
+        .visit-card-item{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px;display:flex;align-items:center;gap:12px}
+        .visit-card-item:active{background:var(--bg-card-hover)}
+        .visit-card-left{flex:1;min-width:0}
+        .visit-card-name{font-size:13px;font-weight:600;margin-bottom:2px}
+        .visit-card-meta{font-size:11px;color:var(--text-tertiary)}
+        .visit-card-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0}
+        .visit-card-amount{font-family:'Space Grotesk';font-size:15px;font-weight:700}
+
+        .payment-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;cursor:pointer;min-height:28px}
+        .payment-badge:active{transform:scale(0.95)}
+        .payment-badge.paid{background:rgba(52,211,153,0.14);color:var(--accent-green)}
+        .payment-badge.due{background:rgba(248,113,113,0.14);color:var(--accent-red)}
+        .payment-badge.partial{background:rgba(251,146,60,0.14);color:var(--accent-orange)}
+        .badge-dot{width:5px;height:5px;border-radius:50%}
+        .payment-badge.paid .badge-dot{background:var(--accent-green)}.payment-badge.due .badge-dot{background:var(--accent-red)}.payment-badge.partial .badge-dot{background:var(--accent-orange)}
+        .amount{font-family:'Space Grotesk';font-weight:600}.amount.green{color:var(--accent-green)}.amount.red{color:var(--accent-red)}
+        .visit-action-btn{width:32px;height:32px;border-radius:8px;background:var(--bg-card);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;color:var(--text-secondary)}
+        .visit-action-btn:active{background:var(--bg-card-hover)}
+
+        .modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:200;display:flex;align-items:flex-end;justify-content:center;opacity:0;visibility:hidden;transition:all 0.3s ease}
+        .modal-overlay.active{opacity:1;visibility:visible}
+        .modal{background:#181820;border:1px solid rgba(255,255,255,0.08);border-radius:var(--radius-xl) var(--radius-xl) 0 0;width:100%;max-width:520px;max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch;transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)}
+        .modal.wide{max-width:700px}.modal.invoice-modal{max-width:700px}
+        .modal-overlay.active .modal{transform:translateY(0)}
+        .modal-handle{width:40px;height:4px;background:rgba(255,255,255,0.2);border-radius:2px;margin:10px auto 0}
+        .modal-header{padding:14px 18px 0;display:flex;align-items:center;justify-content:space-between}
+        .modal-title{font-family:'Space Grotesk';font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px}
+        .modal-close{width:34px;height:34px;border-radius:50%;background:var(--bg-card);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-secondary);font-size:16px}
+        .modal-close:active{background:var(--bg-card-hover)}
+        .modal-body{padding:18px}
+        .modal-footer{padding:0 18px 18px;padding-bottom:max(var(--safe-bottom),18px);display:flex;gap:8px;flex-wrap:wrap}
+        .modal-footer .btn{flex:1;min-width:0}
+        .form-group{margin-bottom:14px}
+        .form-label{display:block;font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:5px}
+        .form-input,.form-select,.form-textarea{width:100%;padding:12px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:var(--text-primary);font-family:'Inter';font-size:16px;outline:none;min-height:46px;-webkit-appearance:none}
+        .form-textarea{resize:vertical;min-height:70px}
+        .form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--accent-blue)}
+        .form-select{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='rgba(255,255,255,0.3)' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}
+        .form-select option{background:#1c1c28}
+        .form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+        .payment-toggle{display:flex;gap:6px}
+        .payment-toggle-btn{flex:1;padding:12px 8px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text-secondary);text-align:center;min-height:46px}
+        .payment-toggle-btn:active{background:var(--bg-card-hover)}
+        .payment-toggle-btn.active.paid-toggle{background:rgba(52,211,153,0.12);color:var(--accent-green);border-color:rgba(52,211,153,0.3)}
+        .payment-toggle-btn.active.due-toggle{background:rgba(248,113,113,0.12);color:var(--accent-red);border-color:rgba(248,113,113,0.3)}
+        .payment-toggle-btn.active.partial-toggle{background:rgba(251,146,60,0.12);color:var(--accent-orange);border-color:rgba(251,146,60,0.3)}
+        .btn{padding:12px 20px;border-radius:10px;font-family:'Inter';font-size:13px;font-weight:600;cursor:pointer;border:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:46px}
+        .btn:active{transform:scale(0.97)}
+        .btn-primary{background:var(--gradient-1);color:white}
+        .btn-secondary{background:var(--bg-card);color:var(--text-secondary);border:1px solid var(--border)}
+        .btn-green{background:rgba(52,211,153,0.15);color:var(--accent-green);border:1px solid rgba(52,211,153,0.22)}
+        .btn-red{background:rgba(248,113,113,0.15);color:var(--accent-red);border:1px solid rgba(248,113,113,0.22)}
+        .btn-orange{background:rgba(251,146,60,0.15);color:var(--accent-orange);border:1px solid rgba(251,146,60,0.22)}
+        .btn-whatsapp{background:rgba(37,211,102,0.15);color:#25d366;border:1px solid rgba(37,211,102,0.22)}
+
+        .empty-state{text-align:center;padding:40px 16px;color:var(--text-tertiary)}
+        .empty-state-icon{font-size:36px;margin-bottom:8px}
+        .empty-state h3{font-size:15px;font-weight:600;color:var(--text-secondary);margin-bottom:4px}
+        .empty-state p{font-size:12px;margin-bottom:14px}
+        .due-highlight{background:rgba(248,113,113,0.06);border:1px solid rgba(248,113,113,0.12);border-radius:var(--radius-md);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+        .due-highlight-text{font-size:11px;color:var(--accent-red);font-weight:500}
+        .due-highlight-amount{font-family:'Space Grotesk';font-size:18px;font-weight:700;color:var(--accent-red)}
+
+        .detail-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px}
+        .detail-stat{text-align:center;padding:10px 4px;background:rgba(255,255,255,0.03);border-radius:8px;border:1px solid var(--border)}
+        .detail-stat-value{font-family:'Space Grotesk';font-size:16px;font-weight:700}
+        .detail-stat-label{font-size:9px;color:var(--text-tertiary);margin-top:1px;text-transform:uppercase}
+        .detail-info{font-size:12px;margin-bottom:5px;display:flex;gap:6px}
+        .detail-info-label{color:var(--text-tertiary);min-width:65px;flex-shrink:0}
+        .detail-info-value{color:var(--text-secondary);word-break:break-word}
         .pcal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;margin-top:14px}
         .pcal-title{font-size:13px;font-weight:600}
         .pcal-nav{display:flex;gap:6px;align-items:center}
@@ -298,17 +650,16 @@
         .pcal-day:active{transform:scale(1.1)}
         .pcal-day.other{opacity:0.2}
         .pcal-day.today-pcal{box-shadow:inset 0 0 0 2px var(--accent-blue)}
-        .pcal-day.visited-paid{background:rgba(52,211,153,0.2);color:var(--accent-green)}
-        .pcal-day.visited-due{background:rgba(248,113,113,0.2);color:var(--accent-red)}
-        .pcal-day.visited-partial{background:rgba(251,146,60,0.2);color:var(--accent-orange)}
-        .pcal-day.no-visit{background:rgba(255,255,255,0.02);color:var(--text-tertiary)}
+        .pcal-day.visited-paid{background:rgba(52,211,153,0.22);color:var(--accent-green)}
+        .pcal-day.visited-due{background:rgba(248,113,113,0.22);color:var(--accent-red)}
+        .pcal-day.visited-partial{background:rgba(251,146,60,0.22);color:var(--accent-orange)}
+        .pcal-day.no-visit{background:rgba(255,255,255,0.025);color:var(--text-tertiary)}
         .detail-visit-list{max-height:200px;overflow-y:auto;-webkit-overflow-scrolling:touch;margin-top:10px}
-        .detail-visit-item{display:flex;align-items:center;justify-content:space-between;padding:10px;border-radius:8px;margin-bottom:3px;background:rgba(255,255,255,0.015);gap:8px}
-        .detail-visit-item:active{background:rgba(255,255,255,0.04)}
+        .detail-visit-item{display:flex;align-items:center;justify-content:space-between;padding:10px;border-radius:8px;margin-bottom:3px;background:rgba(255,255,255,0.02);gap:8px}
+        .detail-visit-item:active{background:rgba(255,255,255,0.05)}
         .detail-visit-date{font-size:12px;font-weight:500;color:var(--text-secondary)}
         .detail-visit-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
 
-        /* Invoice */
         .invoice-preview{background:#fff;color:#111;border-radius:12px;padding:20px;font-family:'Inter';overflow-x:auto}
         .invoice-preview *{color:#111}
         .invoice-header-row{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #4d7cfe;gap:12px;flex-wrap:wrap}
@@ -330,7 +681,6 @@
         .invoice-total-row.due-row{color:#e53e3e!important;font-weight:600}
         .invoice-footer{text-align:center;font-size:9px;color:#999!important;padding-top:12px;border-top:1px solid #eee}
 
-        /* Settings */
         .settings-section{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:16px;margin-bottom:12px}
         .settings-section-title{font-family:'Space Grotesk';font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
         .settings-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);gap:12px}
@@ -341,18 +691,18 @@
         .checkbox-item{display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;min-height:32px}
         .checkbox-item input[type="checkbox"]{width:20px;height:20px;accent-color:var(--accent-blue);flex-shrink:0}
 
-        .toast{position:fixed;bottom:max(var(--safe-bottom),16px);left:14px;right:14px;padding:14px 18px;border-radius:14px;font-weight:600;font-size:13px;z-index:500;animation:slideUp 0.3s ease;text-align:center}
-        .toast.success{background:rgba(52,211,153,0.2);border:1px solid rgba(52,211,153,0.3);color:var(--accent-green)}
-        .toast.error{background:rgba(248,113,113,0.2);border:1px solid rgba(248,113,113,0.3);color:var(--accent-red)}
-        .toast.info{background:rgba(77,124,254,0.2);border:1px solid rgba(77,124,254,0.3);color:var(--accent-blue)}
-        @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+        .toast{position:fixed;bottom:max(var(--safe-bottom),16px);left:14px;right:14px;padding:14px 18px;border-radius:14px;font-weight:600;font-size:13px;z-index:500;animation:toastIn 0.3s ease;text-align:center}
+        .toast.success{background:rgba(52,211,153,0.2);border:1px solid rgba(52,211,153,0.35);color:var(--accent-green)}
+        .toast.error{background:rgba(248,113,113,0.2);border:1px solid rgba(248,113,113,0.35);color:var(--accent-red)}
+        .toast.info{background:rgba(77,124,254,0.2);border:1px solid rgba(77,124,254,0.35);color:var(--accent-blue)}
+        @keyframes toastIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
 
         /* ===== DESKTOP ===== */
         @media(min-width:768px){
             html,body{overflow:auto;position:static;height:auto}
             .main-content{margin-left:272px;height:auto}
             .content-scroll{overflow:visible}
-            .sidebar{transform:translateX(0);background:rgba(17,17,24,0.95);backdrop-filter:blur(40px);-webkit-backdrop-filter:blur(40px)}
+            .sidebar{transform:translateX(0)}
             .sidebar-overlay{display:none!important}
             .menu-btn{display:none}
             .search-box{display:flex}
@@ -360,7 +710,7 @@
             .content{padding:24px}
             .stats-grid{grid-template-columns:repeat(4,1fr);gap:16px}
             .stat-card{padding:20px}.stat-value{font-size:26px}.stat-icon{width:40px;height:40px;font-size:18px}
-            .stat-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-lg);border-color:var(--border-hover)}
+            .stat-card:hover{transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,0.3);border-color:var(--border-hover)}
             .patients-grid{grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
             .patient-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-md);border-color:var(--border-hover)}
             .modal{border-radius:var(--radius-xl);align-self:center}
@@ -379,188 +729,188 @@
 <body>
     <div class="bg-effects"><div class="bg-orb bg-orb-1"></div><div class="bg-orb bg-orb-2"></div></div>
 
-    <!-- OVERLAY — separate div, BELOW sidebar in z-index -->
+    <!-- Overlay: ONLY covers main content area, NOT the sidebar -->
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-    <div class="app-layout">
-        <!-- SIDEBAR — ABOVE overlay in z-index -->
-        <aside class="sidebar" id="sidebar">
-            <div class="sidebar-header"><a class="logo" onclick="switchNav(this,'dashboard')"><div class="logo-icon">🩺</div><span class="logo-text">PhysioTracker</span></a></div>
-            <nav class="sidebar-nav">
-                <div class="nav-section"><div class="nav-section-title">Main</div>
-                    <div class="nav-item active" data-view="dashboard" onclick="switchNav(this,'dashboard')"><span class="nav-icon">📊</span>Dashboard</div>
-                    <div class="nav-item" data-view="patients" onclick="switchNav(this,'patients')"><span class="nav-icon">👥</span>Patients<span class="nav-badge blue" id="patientCountBadge">0</span></div>
-                    <div class="nav-item" data-view="calendar" onclick="switchNav(this,'calendar')"><span class="nav-icon">📅</span>Calendar</div>
-                    <div class="nav-item" data-view="visits" onclick="switchNav(this,'visits')"><span class="nav-icon">🏠</span>All Visits</div>
-                </div>
-                <div class="nav-section"><div class="nav-section-title">Payments</div>
-                    <div class="nav-item" data-view="dues" onclick="switchNav(this,'dues')"><span class="nav-icon">💰</span>Dues<span class="nav-badge red" id="dueCountBadge">0</span></div>
-                    <div class="nav-item" data-view="collected" onclick="switchNav(this,'collected')"><span class="nav-icon">✅</span>Collected<span class="nav-badge green" id="collectedBadge">0</span></div>
-                    <div class="nav-item" data-view="invoices" onclick="switchNav(this,'invoices')"><span class="nav-icon">🧾</span>Invoices</div>
-                </div>
-                <div class="nav-section"><div class="nav-section-title">More</div>
-                    <div class="nav-item" data-view="archived" onclick="switchNav(this,'archived')"><span class="nav-icon">📦</span>Archived<span class="nav-badge orange" id="archivedBadge">0</span></div>
-                    <div class="nav-item" data-view="settings" onclick="switchNav(this,'settings')"><span class="nav-icon">⚙️</span>Settings</div>
-                </div>
-                <div class="nav-section"><div class="nav-section-title">Quick</div>
-                    <div class="nav-item" onclick="closeSidebar();setTimeout(()=>openModal('addPatient'),100)"><span class="nav-icon">➕</span>New Patient</div>
-                    <div class="nav-item" onclick="closeSidebar();setTimeout(()=>openModal('addVisit'),100)"><span class="nav-icon">📝</span>Log Visit</div>
-                </div>
-            </nav>
-            <div class="sidebar-footer"><div class="user-profile" onclick="switchNav(document.querySelector('[data-view=settings]'),'settings')"><div class="user-avatar" id="sidebarAvatar">DR</div><div class="user-info"><h4 id="sidebarDocName">Dr. Physio</h4><p>Physiotherapist</p></div></div></div>
-        </aside>
-
-        <main class="main-content">
-            <div class="top-bar">
-                <div class="top-bar-left"><button class="menu-btn" onclick="toggleSidebar()">☰</button><div class="page-title"><h1 id="pageTitle">Dashboard</h1><p id="pageSubtitle">Overview</p></div></div>
-                <div class="top-bar-right">
-                    <div class="search-box"><span style="color:var(--text-tertiary)">🔍</span><input type="text" placeholder="Search..." id="globalSearch" oninput="handleSearch(this.value)"></div>
-                    <button class="icon-btn" onclick="openModal('addVisit')">📝</button>
-                    <button class="icon-btn" onclick="openModal('addPatient')">➕</button>
-                </div>
+    <!-- Sidebar: renders above overlay, no overlap -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header"><a class="logo" onclick="goHome()"><div class="logo-icon">🩺</div><span class="logo-text">PhysioTracker</span></a></div>
+        <nav class="sidebar-nav">
+            <div class="nav-section"><div class="nav-section-title">Main</div>
+                <div class="nav-item active" data-view="dashboard" onclick="nav(this,'dashboard')"><span class="nav-icon">📊</span>Dashboard</div>
+                <div class="nav-item" data-view="patients" onclick="nav(this,'patients')"><span class="nav-icon">👥</span>Patients<span class="nav-badge blue" id="bP">0</span></div>
+                <div class="nav-item" data-view="calendar" onclick="nav(this,'calendar')"><span class="nav-icon">📅</span>Calendar</div>
+                <div class="nav-item" data-view="visits" onclick="nav(this,'visits')"><span class="nav-icon">🏠</span>All Visits</div>
             </div>
-            <div class="content-scroll">
-                <div class="content">
-                    <div class="view-panel active" id="view-dashboard">
-                        <div class="stats-grid" id="statsGrid"></div>
-                        <div id="dueAlert"></div>
-                        <div class="section-header"><div class="section-title">📋 Today</div><button class="btn btn-primary" onclick="openModal('addVisit')" style="padding:8px 14px;font-size:12px">+ Log</button></div>
-                        <div id="todayVisitsList"></div>
-                        <div style="margin-top:18px"><div class="section-header"><div class="section-title">👥 Patients</div></div><div class="patients-grid" id="dashboardPatients"></div></div>
-                    </div>
-                    <div class="view-panel" id="view-patients"><div class="section-header"><div class="section-title">All Patients</div><button class="btn btn-primary" onclick="openModal('addPatient')" style="padding:8px 14px;font-size:12px">+ Add</button></div><div class="patients-grid" id="patientsGrid"></div><div class="empty-state" id="noPatientsMsg" style="display:none"><div class="empty-state-icon">👥</div><h3>No patients</h3><button class="btn btn-primary" onclick="openModal('addPatient')">+ Add</button></div></div>
-                    <div class="view-panel" id="view-calendar"><div class="calendar-header"><div class="calendar-nav"><button class="calendar-nav-btn" onclick="changeMonth(-1)">◀</button><div class="calendar-month" id="calendarMonth"></div><button class="calendar-nav-btn" onclick="changeMonth(1)">▶</button><button class="calendar-today-btn" onclick="goToToday()">Today</button></div><select class="filter-select" id="calendarPatientFilter" onchange="renderCalendar()"><option value="all">All</option></select></div><div class="calendar-grid" id="calendarGrid"></div><div class="calendar-legend"><div class="legend-item"><div class="legend-dot paid"></div>Paid</div><div class="legend-item"><div class="legend-dot due"></div>Due</div><div class="legend-item"><div class="legend-dot partial"></div>Partial</div><div class="legend-item"><div class="legend-dot today-l"></div>Today</div></div></div>
-                    <div class="view-panel" id="view-visits"><div class="section-header"><div class="section-title">All Visits</div><div class="section-actions"><select class="filter-select" id="visitsPatientFilter" onchange="renderVL()"><option value="all">All</option></select><select class="filter-select" id="visitsStatusFilter" onchange="renderVL()"><option value="all">All</option><option value="paid">Paid</option><option value="due">Due</option><option value="partial">Partial</option></select></div></div><div id="visitsListContainer"></div></div>
-                    <div class="view-panel" id="view-dues"><div class="section-header"><div class="section-title">💰 Dues</div></div><div id="dueHighlightBox"></div><div id="duesList"></div></div>
-                    <div class="view-panel" id="view-collected"><div class="section-header"><div class="section-title">✅ Collected</div></div><div id="collectedHighlight"></div><div id="collectedList"></div></div>
-                    <div class="view-panel" id="view-invoices"><div class="section-header"><div class="section-title">🧾 Invoice</div></div><div id="invoiceCreator"></div></div>
-                    <div class="view-panel" id="view-archived"><div class="section-header"><div class="section-title">📦 Archived</div></div><div class="patients-grid" id="archivedGrid"></div><div class="empty-state" id="noArchivedMsg" style="display:none"><div class="empty-state-icon">📦</div><h3>No archived patients</h3></div></div>
-                    <div class="view-panel" id="view-settings"><div id="settingsContainer"></div></div>
-                </div>
+            <div class="nav-section"><div class="nav-section-title">Payments</div>
+                <div class="nav-item" data-view="dues" onclick="nav(this,'dues')"><span class="nav-icon">💰</span>Dues<span class="nav-badge red" id="bD">0</span></div>
+                <div class="nav-item" data-view="collected" onclick="nav(this,'collected')"><span class="nav-icon">✅</span>Collected<span class="nav-badge green" id="bC">0</span></div>
+                <div class="nav-item" data-view="invoices" onclick="nav(this,'invoices')"><span class="nav-icon">🧾</span>Invoices</div>
             </div>
-        </main>
-    </div>
+            <div class="nav-section"><div class="nav-section-title">More</div>
+                <div class="nav-item" data-view="archived" onclick="nav(this,'archived')"><span class="nav-icon">📦</span>Archived<span class="nav-badge orange" id="bA">0</span></div>
+                <div class="nav-item" data-view="settings" onclick="nav(this,'settings')"><span class="nav-icon">⚙️</span>Settings</div>
+            </div>
+            <div class="nav-section"><div class="nav-section-title">Quick</div>
+                <div class="nav-item" onclick="closeSB();setTimeout(()=>openModal('addPatient'),150)"><span class="nav-icon">➕</span>New Patient</div>
+                <div class="nav-item" onclick="closeSB();setTimeout(()=>openModal('addVisit'),150)"><span class="nav-icon">📝</span>Log Visit</div>
+            </div>
+        </nav>
+        <div class="sidebar-footer"><div class="user-profile" onclick="nav(document.querySelector('[data-view=settings]'),'settings')"><div class="user-avatar" id="sbAv">DR</div><div class="user-info"><h4 id="sbName">Dr. Physio</h4><p>Physiotherapist</p></div></div></div>
+    </aside>
 
-    <!-- MODALS -->
+    <main class="main-content">
+        <div class="top-bar">
+            <div class="top-bar-left"><button class="menu-btn" onclick="toggleSB()">☰</button><div class="page-title"><h1 id="pgT">Dashboard</h1><p id="pgS">Overview</p></div></div>
+            <div class="top-bar-right">
+                <div class="search-box"><span style="color:var(--text-tertiary)">🔍</span><input type="text" placeholder="Search..." id="globalSearch" oninput="handleSearch(this.value)"></div>
+                <button class="icon-btn" onclick="openModal('addVisit')">📝</button>
+                <button class="icon-btn" onclick="openModal('addPatient')">➕</button>
+            </div>
+        </div>
+        <div class="content-scroll"><div class="content">
+            <div class="view-panel active" id="view-dashboard">
+                <div class="stats-grid" id="statsGrid"></div>
+                <div id="dueAlert"></div>
+                <div class="section-header"><div class="section-title">📋 Today</div><button class="btn btn-primary" onclick="openModal('addVisit')" style="padding:8px 14px;font-size:12px">+ Log</button></div>
+                <div id="todayVL"></div>
+                <div style="margin-top:18px"><div class="section-header"><div class="section-title">👥 Patients</div></div><div class="patients-grid" id="dashP"></div></div>
+            </div>
+            <div class="view-panel" id="view-patients"><div class="section-header"><div class="section-title">Patients</div><button class="btn btn-primary" onclick="openModal('addPatient')" style="padding:8px 14px;font-size:12px">+ Add</button></div><div class="patients-grid" id="pGrid"></div><div class="empty-state" id="noP" style="display:none"><div class="empty-state-icon">👥</div><h3>No patients</h3><button class="btn btn-primary" onclick="openModal('addPatient')">+ Add</button></div></div>
+            <div class="view-panel" id="view-calendar"><div class="calendar-header"><div class="calendar-nav"><button class="calendar-nav-btn" onclick="chM(-1)">◀</button><div class="calendar-month" id="calM"></div><button class="calendar-nav-btn" onclick="chM(1)">▶</button><button class="calendar-today-btn" onclick="goT()">Today</button></div><select class="filter-select" id="calF" onchange="rCal()"><option value="all">All</option></select></div><div class="calendar-grid" id="calG"></div><div class="calendar-legend"><div class="legend-item"><div class="legend-dot paid"></div>Paid</div><div class="legend-item"><div class="legend-dot due"></div>Due</div><div class="legend-item"><div class="legend-dot partial"></div>Partial</div><div class="legend-item"><div class="legend-dot today-l"></div>Today</div></div></div>
+            <div class="view-panel" id="view-visits"><div class="section-header"><div class="section-title">All Visits</div><div class="section-actions"><select class="filter-select" id="vPF" onchange="rVL()"><option value="all">All</option></select><select class="filter-select" id="vSF" onchange="rVL()"><option value="all">All</option><option value="paid">Paid</option><option value="due">Due</option><option value="partial">Partial</option></select></div></div><div id="vLC"></div></div>
+            <div class="view-panel" id="view-dues"><div class="section-header"><div class="section-title">💰 Dues</div></div><div id="dHB"></div><div id="dL"></div></div>
+            <div class="view-panel" id="view-collected"><div class="section-header"><div class="section-title">✅ Collected</div></div><div id="cH"></div><div id="cL"></div></div>
+            <div class="view-panel" id="view-invoices"><div class="section-header"><div class="section-title">🧾 Invoice</div></div><div id="invC"></div></div>
+            <div class="view-panel" id="view-archived"><div class="section-header"><div class="section-title">📦 Archived</div></div><div class="patients-grid" id="arG"></div><div class="empty-state" id="noA" style="display:none"><div class="empty-state-icon">📦</div><h3>None archived</h3></div></div>
+            <div class="view-panel" id="view-settings"><div id="setC"></div></div>
+        </div></div>
+    </main>
+
     <div class="modal-overlay" id="modal-addPatient"><div class="modal"><div class="modal-handle"></div><div class="modal-header"><h2 class="modal-title">👤 Add Patient</h2><button class="modal-close" onclick="closeModal('addPatient')">✕</button></div><div class="modal-body">
-        <div class="form-group"><label class="form-label">Name *</label><input type="text" class="form-input" id="patientName" placeholder="Full name" autocomplete="off"></div>
-        <div class="form-row"><div class="form-group"><label class="form-label">Phone</label><input type="tel" class="form-input" id="patientPhone" placeholder="+91..."></div><div class="form-group"><label class="form-label">Fee (₹)</label><input type="number" class="form-input" id="patientFee" value="500" inputmode="numeric"></div></div>
-        <div class="form-group"><label class="form-label">Condition</label><input type="text" class="form-input" id="patientCondition" placeholder="Diagnosis..." autocomplete="off"></div>
-        <div class="form-group"><label class="form-label">Address</label><textarea class="form-input form-textarea" id="patientAddress" placeholder="Address..."></textarea></div>
-        <div class="form-group"><label class="form-label">Notes</label><input type="text" class="form-input" id="patientNotes" placeholder="Notes..." autocomplete="off"></div>
-    </div><div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('addPatient')">Cancel</button><button class="btn btn-primary" onclick="savePatient()">✓ Add</button></div></div></div>
+        <div class="form-group"><label class="form-label">Name *</label><input type="text" class="form-input" id="pN" placeholder="Full name" autocomplete="off"></div>
+        <div class="form-row"><div class="form-group"><label class="form-label">Phone</label><input type="tel" class="form-input" id="pPh" placeholder="+91..."></div><div class="form-group"><label class="form-label">Fee (₹)</label><input type="number" class="form-input" id="pF" value="500" inputmode="numeric"></div></div>
+        <div class="form-group"><label class="form-label">Condition</label><input type="text" class="form-input" id="pCo" placeholder="Diagnosis..." autocomplete="off"></div>
+        <div class="form-group"><label class="form-label">Address</label><textarea class="form-input form-textarea" id="pAd" placeholder="Address..."></textarea></div>
+        <div class="form-group"><label class="form-label">Notes</label><input type="text" class="form-input" id="pNo" placeholder="Notes..." autocomplete="off"></div>
+    </div><div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('addPatient')">Cancel</button><button class="btn btn-primary" onclick="savePat()">✓ Add</button></div></div></div>
 
     <div class="modal-overlay" id="modal-addVisit"><div class="modal"><div class="modal-handle"></div><div class="modal-header"><h2 class="modal-title">📝 Log Visit</h2><button class="modal-close" onclick="closeModal('addVisit')">✕</button></div><div class="modal-body">
-        <div class="form-group"><label class="form-label">Patient *</label><select class="form-select" id="visitPatient" onchange="autofillFee()"><option value="">Select...</option></select></div>
-        <div class="form-row"><div class="form-group"><label class="form-label">Date *</label><input type="date" class="form-input" id="visitDate"></div><div class="form-group"><label class="form-label">Amount (₹)</label><input type="number" class="form-input" id="visitAmount" placeholder="500" inputmode="numeric"></div></div>
+        <div class="form-group"><label class="form-label">Patient *</label><select class="form-select" id="vP" onchange="autoFee()"><option value="">Select...</option></select></div>
+        <div class="form-row"><div class="form-group"><label class="form-label">Date *</label><input type="date" class="form-input" id="vD"></div><div class="form-group"><label class="form-label">Amount (₹)</label><input type="number" class="form-input" id="vA" placeholder="500" inputmode="numeric"></div></div>
         <div class="form-group"><label class="form-label">Payment</label><div class="payment-toggle"><button class="payment-toggle-btn paid-toggle active" onclick="setPS('paid',this)">✅ Paid</button><button class="payment-toggle-btn due-toggle" onclick="setPS('due',this)">⏳ Due</button><button class="payment-toggle-btn partial-toggle" onclick="setPS('partial',this)">🔄 Partial</button></div></div>
-        <div class="form-group" id="partialGroup" style="display:none"><label class="form-label">Paid (₹)</label><input type="number" class="form-input" id="visitPartialAmt" placeholder="200" inputmode="numeric"></div>
-        <div class="form-group"><label class="form-label">Notes</label><input type="text" class="form-input" id="visitNotes" placeholder="Notes..." autocomplete="off"></div>
-    </div><div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('addVisit')">Cancel</button><button class="btn btn-primary" onclick="saveVisit()">✓ Save</button></div></div></div>
+        <div class="form-group" id="partG" style="display:none"><label class="form-label">Paid (₹)</label><input type="number" class="form-input" id="vPA" placeholder="200" inputmode="numeric"></div>
+        <div class="form-group"><label class="form-label">Notes</label><input type="text" class="form-input" id="vNo" placeholder="Notes..." autocomplete="off"></div>
+    </div><div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('addVisit')">Cancel</button><button class="btn btn-primary" onclick="saveVis()">✓ Save</button></div></div></div>
 
-    <div class="modal-overlay" id="modal-patientDetail"><div class="modal wide"><div class="modal-handle"></div><div class="modal-header"><h2 class="modal-title" id="detailTitle">👤</h2><button class="modal-close" onclick="closeModal('patientDetail')">✕</button></div><div class="modal-body" id="detailBody"></div><div class="modal-footer">
-        <button class="btn btn-orange" id="archiveBtn" onclick="toggleArchive()">📦</button>
-        <button class="btn btn-red" onclick="deleteCurrent()">🗑️</button>
-        <button class="btn btn-green" onclick="openInvForP()">🧾</button>
-        <button class="btn btn-primary" onclick="logForDetail()">📝 Log</button>
+    <div class="modal-overlay" id="modal-detail"><div class="modal wide"><div class="modal-handle"></div><div class="modal-header"><h2 class="modal-title" id="dT">👤</h2><button class="modal-close" onclick="closeModal('detail')">✕</button></div><div class="modal-body" id="dB"></div><div class="modal-footer">
+        <button class="btn btn-orange" id="arBtn" onclick="togAr()">📦</button>
+        <button class="btn btn-red" onclick="delCur()">🗑️</button>
+        <button class="btn btn-green" onclick="invForP()">🧾</button>
+        <button class="btn btn-primary" onclick="logForD()">📝 Log</button>
     </div></div></div>
 
-    <div class="modal-overlay" id="modal-invoicePreview"><div class="modal invoice-modal"><div class="modal-handle"></div><div class="modal-header"><h2 class="modal-title">🧾 Invoice</h2><button class="modal-close" onclick="closeModal('invoicePreview')">✕</button></div><div class="modal-body"><div id="invoicePreviewContent"></div></div><div class="modal-footer">
+    <div class="modal-overlay" id="modal-inv"><div class="modal invoice-modal"><div class="modal-handle"></div><div class="modal-header"><h2 class="modal-title">🧾 Invoice</h2><button class="modal-close" onclick="closeModal('inv')">✕</button></div><div class="modal-body"><div id="invPC"></div></div><div class="modal-footer">
         <button class="btn btn-whatsapp" onclick="sendWA()">📱 WhatsApp</button>
         <button class="btn btn-primary" onclick="dlPDF()">📄 PDF</button>
     </div></div></div>
 
 <script>
+// ============ DATA ============
 let D={patients:[],visits:[],settings:{doctorName:'Dr. Physio',clinicName:'PhysioTracker Clinic',phone:'',address:'',gstNumber:'',invoicePrefix:'INV',invoiceCounter:1,invoiceFields:{showGST:false,showCondition:true,showAddress:true,showPhone:true,showNotes:true,showDueAmount:true},currency:'₹'}};
-let calDate=new Date(),payS='paid',dPid=null,dCalDate=new Date(),curInv=null;
-const COL=['#4d7cfe','#7c5cfc','#34d399','#fb923c','#22d3ee','#f87171','#a78bfa','#facc15','#f472b6','#38bdf8'];
-function ld(){const s=localStorage.getItem('pt_v4');if(s){D=JSON.parse(s);if(!D.settings)D.settings={doctorName:'Dr. Physio',clinicName:'PhysioTracker Clinic',phone:'',address:'',gstNumber:'',invoicePrefix:'INV',invoiceCounter:1,invoiceFields:{showGST:false,showCondition:true,showAddress:true,showPhone:true,showNotes:true,showDueAmount:true},currency:'₹'};}else seed();}
-function sv(){localStorage.setItem('pt_v4',JSON.stringify(D));}
+let calDt=new Date(),payS='paid',dPid=null,dCDt=new Date(),cInv=null;
+const CO=['#4d7cfe','#7c5cfc','#34d399','#fb923c','#22d3ee','#f87171','#a78bfa','#facc15','#f472b6','#38bdf8'];
+const defSet=()=>({doctorName:'Dr. Physio',clinicName:'PhysioTracker Clinic',phone:'',address:'',gstNumber:'',invoicePrefix:'INV',invoiceCounter:1,invoiceFields:{showGST:false,showCondition:true,showAddress:true,showPhone:true,showNotes:true,showDueAmount:true},currency:'₹'});
+
+function ld(){try{const s=localStorage.getItem('pt_v5');if(s){D=JSON.parse(s);if(!D.settings)D.settings=defSet();}else seed();}catch(e){seed();}}
+function sv(){localStorage.setItem('pt_v5',JSON.stringify(D));}
 function gid(){return Date.now().toString(36)+Math.random().toString(36).substr(2,5);}
-function seed(){[{name:'Ramesh Kumar',phone:'9876543210',fee:500,condition:'Knee Replacement',address:'12, MG Road'},{name:'Sunita Devi',phone:'9123456789',fee:600,condition:'Frozen Shoulder',address:'45, Lajpat Nagar'},{name:'Anil Sharma',phone:'9988776655',fee:500,condition:'Lower Back Pain',address:'78, Dwarka'},{name:'Priya Singh',phone:'9112233445',fee:700,condition:'Ankle Fracture',address:'23, Vasant Kunj'},{name:'Mohammed Irfan',phone:'9556677889',fee:500,condition:'Cervical Spondylitis',address:'56, Okhla'}].forEach((p,i)=>{D.patients.push({id:gid(),...p,notes:'',color:COL[i],archived:false});});const t=new Date();D.patients.forEach(p=>{for(let d=25;d>=0;d--){if(Math.random()>0.5){const v=new Date(t);v.setDate(v.getDate()-d);const pd=Math.random()>0.3,pt=!pd&&Math.random()>0.5;D.visits.push({id:gid(),patientId:p.id,date:fm(v),amount:p.fee,status:pd?'paid':(pt?'partial':'due'),partialAmount:pt?Math.round(p.fee*0.4):0,notes:''});}}});sv();}
+function seed(){[{name:'Ramesh Kumar',phone:'9876543210',fee:500,condition:'Knee Replacement',address:'12, MG Road'},{name:'Sunita Devi',phone:'9123456789',fee:600,condition:'Frozen Shoulder',address:'45, Lajpat Nagar'},{name:'Anil Sharma',phone:'9988776655',fee:500,condition:'Lower Back Pain',address:'78, Dwarka'},{name:'Priya Singh',phone:'9112233445',fee:700,condition:'Ankle Fracture',address:'23, Vasant Kunj'},{name:'Mohammed Irfan',phone:'9556677889',fee:500,condition:'Cervical Spondylitis',address:'56, Okhla'}].forEach((p,i)=>{D.patients.push({id:gid(),...p,notes:'',color:CO[i],archived:false});});const t=new Date();D.patients.forEach(p=>{for(let d=25;d>=0;d--){if(Math.random()>0.5){const v=new Date(t);v.setDate(v.getDate()-d);const pd=Math.random()>0.3,pt=!pd&&Math.random()>0.5;D.visits.push({id:gid(),patientId:p.id,date:fm(v),amount:p.fee,status:pd?'paid':(pt?'partial':'due'),partialAmount:pt?Math.round(p.fee*0.4):0,notes:''});}}});sv();}
+
+// ============ HELPERS ============
 function fm(d){return d.toISOString().split('T')[0];}
 function ini(n){return n.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);}
-function fD(s){const d=new Date(s+'T00:00:00'),t=new Date();t.setHours(0,0,0,0);const y=new Date(t);y.setDate(y.getDate()-1);if(d.getTime()===t.getTime())return'Today';if(d.getTime()===y.getTime())return'Yesterday';return d.toLocaleDateString('en-IN',{day:'numeric',month:'short'});}
+function fD(s){const d=new Date(s+'T00:00:00'),t=new Date();t.setHours(0,0,0,0);if(d.getTime()===t.getTime())return'Today';const y=new Date(t);y.setDate(y.getDate()-1);if(d.getTime()===y.getTime())return'Yesterday';return d.toLocaleDateString('en-IN',{day:'numeric',month:'short'});}
 function fM(n){return D.settings.currency+n.toLocaleString('en-IN');}
-function AP(){return D.patients.filter(p=>!p.archived);}function ARP(){return D.patients.filter(p=>p.archived);}
+function AP(){return D.patients.filter(p=>!p.archived);}
+function ARP(){return D.patients.filter(p=>p.archived);}
+function cDue(){let t=0;D.visits.forEach(v=>{if(v.status==='due')t+=v.amount;else if(v.status==='partial')t+=(v.amount-v.partialAmount);});return t;}
 
-function savePatient(){const n=document.getElementById('patientName').value.trim();if(!n){toast('Enter name','error');return;}D.patients.push({id:gid(),name:n,phone:document.getElementById('patientPhone').value.trim(),fee:parseInt(document.getElementById('patientFee').value)||500,condition:document.getElementById('patientCondition').value.trim(),address:document.getElementById('patientAddress').value.trim(),notes:document.getElementById('patientNotes').value.trim(),color:COL[D.patients.length%COL.length],archived:false});sv();closeModal('addPatient');['patientName','patientPhone','patientCondition','patientAddress','patientNotes'].forEach(id=>document.getElementById(id).value='');document.getElementById('patientFee').value='500';R();toast(n+' added!','success');}
-function delP(id){if(!confirm('Delete patient & visits?'))return;D.patients=D.patients.filter(p=>p.id!==id);D.visits=D.visits.filter(v=>v.patientId!==id);sv();closeModal('patientDetail');R();toast('Deleted','info');}
-function deleteCurrent(){if(dPid)delP(dPid);}
-function toggleArchive(){const p=D.patients.find(x=>x.id===dPid);if(!p)return;p.archived=!p.archived;sv();closeModal('patientDetail');R();toast(p.archived?'Archived':'Restored','info');}
+// ============ CRUD ============
+function savePat(){const n=document.getElementById('pN').value.trim();if(!n){toast('Enter name','error');return;}D.patients.push({id:gid(),name:n,phone:document.getElementById('pPh').value.trim(),fee:parseInt(document.getElementById('pF').value)||500,condition:document.getElementById('pCo').value.trim(),address:document.getElementById('pAd').value.trim(),notes:document.getElementById('pNo').value.trim(),color:CO[D.patients.length%CO.length],archived:false});sv();closeModal('addPatient');['pN','pPh','pCo','pAd','pNo'].forEach(i=>document.getElementById(i).value='');document.getElementById('pF').value='500';R();toast(n+' added!','success');}
+function delP(id){if(!confirm('Delete patient & all visits?'))return;D.patients=D.patients.filter(p=>p.id!==id);D.visits=D.visits.filter(v=>v.patientId!==id);sv();closeModal('detail');R();toast('Deleted','info');}
+function delCur(){if(dPid)delP(dPid);}
+function togAr(){const p=D.patients.find(x=>x.id===dPid);if(!p)return;p.archived=!p.archived;sv();closeModal('detail');R();toast(p.archived?'Archived':'Restored','info');}
+function saveVis(){const pid=document.getElementById('vP').value,dt=document.getElementById('vD').value,amt=parseInt(document.getElementById('vA').value)||0;if(!pid){toast('Select patient','error');return;}if(!dt){toast('Pick date','error');return;}if(!amt){toast('Enter amount','error');return;}D.visits.push({id:gid(),patientId:pid,date:dt,amount:amt,status:payS,partialAmount:payS==='partial'?(parseInt(document.getElementById('vPA').value)||0):0,notes:document.getElementById('vNo').value.trim()});sv();closeModal('addVisit');R();const p=D.patients.find(x=>x.id===pid);toast('Logged'+(p?' — '+p.name:''),'success');}
+function tPay(vid){const v=D.visits.find(x=>x.id===vid);if(v){v.status=v.status==='paid'?'due':'paid';v.partialAmount=0;sv();R();if(dPid)showDet(dPid);toast(v.status==='paid'?'Paid ✅':'Due','info');}}
+function delV(vid){D.visits=D.visits.filter(v=>v.id!==vid);sv();R();if(dPid)showDet(dPid);toast('Deleted','info');}
+function setPS(s,btn){payS=s;document.querySelectorAll('.payment-toggle-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.getElementById('partG').style.display=s==='partial'?'block':'none';}
+function autoFee(){const p=D.patients.find(x=>x.id===document.getElementById('vP').value);if(p)document.getElementById('vA').value=p.fee;}
 
-function saveVisit(){const pid=document.getElementById('visitPatient').value,date=document.getElementById('visitDate').value,amt=parseInt(document.getElementById('visitAmount').value)||0;if(!pid){toast('Select patient','error');return;}if(!date){toast('Select date','error');return;}if(!amt){toast('Enter amount','error');return;}D.visits.push({id:gid(),patientId:pid,date,amount:amt,status:payS,partialAmount:payS==='partial'?(parseInt(document.getElementById('visitPartialAmt').value)||0):0,notes:document.getElementById('visitNotes').value.trim()});sv();closeModal('addVisit');R();const p=D.patients.find(x=>x.id===pid);toast('Logged'+(p?' — '+p.name:''),'success');}
-function tP(vid){const v=D.visits.find(x=>x.id===vid);if(v){v.status=v.status==='paid'?'due':'paid';v.partialAmount=0;sv();R();if(dPid)showD(dPid);toast(v.status==='paid'?'Paid ✅':'Due','info');}}
-function delV(vid){D.visits=D.visits.filter(v=>v.id!==vid);sv();R();if(dPid)showD(dPid);toast('Deleted','info');}
-function setPS(s,btn){payS=s;document.querySelectorAll('.payment-toggle-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.getElementById('partialGroup').style.display=s==='partial'?'block':'none';}
-function autofillFee(){const p=D.patients.find(x=>x.id===document.getElementById('visitPatient').value);if(p)document.getElementById('visitAmount').value=p.fee;}
-
-function R(){uStats();rDP();rTV();rPG();renderCalendar();renderVL();rDues();rColl();rArch();rIC();rSet();uDD();uB();uSP();}
-function uSP(){document.getElementById('sidebarDocName').textContent=D.settings.doctorName;document.getElementById('sidebarAvatar').textContent=ini(D.settings.doctorName);}
+// ============ RENDER ALL ============
+function R(){uStats();rDashP();rTodayV();rPatG();rCal();rVL();rDues();rColl();rArch();rInvC();rSettings();uDD();uBadges();uSP();}
+function uSP(){document.getElementById('sbName').textContent=D.settings.doctorName;document.getElementById('sbAv').textContent=ini(D.settings.doctorName);}
 function uStats(){const ms=new Date(),mS=fm(new Date(ms.getFullYear(),ms.getMonth(),1)),mv=D.visits.filter(v=>v.date>=mS);let c=0,d=0,dp=new Set();mv.forEach(v=>{if(v.status==='paid')c+=v.amount;else if(v.status==='due'){d+=v.amount;dp.add(v.patientId)}else{c+=v.partialAmount;d+=(v.amount-v.partialAmount);dp.add(v.patientId)}});
 document.getElementById('statsGrid').innerHTML=`<div class="stat-card"><div class="stat-card-header"><div class="stat-icon green">💰</div><div class="stat-trend up">Month</div></div><div class="stat-value">${fM(c)}</div><div class="stat-label">Collected</div></div><div class="stat-card"><div class="stat-card-header"><div class="stat-icon red">⏳</div><div class="stat-trend down">${dp.size}</div></div><div class="stat-value">${fM(d)}</div><div class="stat-label">Due</div></div><div class="stat-card"><div class="stat-card-header"><div class="stat-icon blue">🏠</div><div class="stat-trend up">Month</div></div><div class="stat-value">${mv.length}</div><div class="stat-label">Visits</div></div><div class="stat-card"><div class="stat-card-header"><div class="stat-icon purple">👥</div></div><div class="stat-value">${AP().length}</div><div class="stat-label">Patients</div></div>`;
-const ad=cDue(),a=document.getElementById('dueAlert');a.innerHTML=ad>0?`<div class="due-highlight"><div class="due-highlight-text">⚠️ ${dp.size} patient(s)</div><div class="due-highlight-amount">${fM(ad)}</div></div>`:'';}
-function cDue(){let t=0;D.visits.forEach(v=>{if(v.status==='due')t+=v.amount;else if(v.status==='partial')t+=(v.amount-v.partialAmount);});return t;}
-function uB(){document.getElementById('patientCountBadge').textContent=AP().length;document.getElementById('dueCountBadge').textContent=D.visits.filter(v=>v.status!=='paid').length;document.getElementById('collectedBadge').textContent=D.visits.filter(v=>v.status==='paid').length;document.getElementById('archivedBadge').textContent=ARP().length;}
-function uDD(){['visitPatient','calendarPatientFilter','visitsPatientFilter'].forEach(id=>{const s=document.getElementById(id),cv=s.value,isF=id!=='visitPatient';s.innerHTML=isF?'<option value="all">All</option>':'<option value="">Select...</option>';AP().forEach(p=>{s.innerHTML+=`<option value="${p.id}">${p.name}</option>`;});s.value=cv||(isF?'all':'');});}
+const ad=cDue(),el=document.getElementById('dueAlert');el.innerHTML=ad>0?`<div class="due-highlight"><div class="due-highlight-text">⚠️ ${dp.size} patient(s)</div><div class="due-highlight-amount">${fM(ad)}</div></div>`:'';}
+function uBadges(){document.getElementById('bP').textContent=AP().length;document.getElementById('bD').textContent=D.visits.filter(v=>v.status!=='paid').length;document.getElementById('bC').textContent=D.visits.filter(v=>v.status==='paid').length;document.getElementById('bA').textContent=ARP().length;}
+function uDD(){['vP','calF','vPF'].forEach(id=>{const s=document.getElementById(id),cv=s.value,isF=id!=='vP';s.innerHTML=isF?'<option value="all">All</option>':'<option value="">Select...</option>';AP().forEach(p=>{s.innerHTML+=`<option value="${p.id}">${p.name}</option>`;});s.value=cv||(isF?'all':'');});}
 
-function rDP(){const c=document.getElementById('dashboardPatients');c.innerHTML='';if(!AP().length){c.innerHTML='<div class="empty-state"><div class="empty-state-icon">👥</div><h3>No patients</h3><button class="btn btn-primary" onclick="openModal(\'addPatient\')">+ Add</button></div>';return;}AP().forEach(p=>{c.innerHTML+=pC(p);});}
-function rPG(){const c=document.getElementById('patientsGrid'),n=document.getElementById('noPatientsMsg');c.innerHTML='';if(!AP().length){n.style.display='block';return;}n.style.display='none';AP().forEach(p=>{c.innerHTML+=pC(p);});}
-function rArch(){const c=document.getElementById('archivedGrid'),n=document.getElementById('noArchivedMsg');c.innerHTML='';if(!ARP().length){n.style.display='block';return;}n.style.display='none';ARP().forEach(p=>{c.innerHTML+=pC(p,true);});}
+// Patient card builder
+function pCard(p,ar=false){const pv=D.visits.filter(v=>v.patientId===p.id),pd=pv.filter(v=>v.status==='paid').reduce((s,v)=>s+v.amount,0)+pv.filter(v=>v.status==='partial').reduce((s,v)=>s+v.partialAmount,0),du=pv.filter(v=>v.status==='due').reduce((s,v)=>s+v.amount,0)+pv.filter(v=>v.status==='partial').reduce((s,v)=>s+(v.amount-v.partialAmount),0);
+return`<div class="patient-card ${ar?'archived-card':''}" onclick="showDet('${p.id}')"><div class="patient-card-top"><div class="patient-avatar" style="background:${p.color}">${ini(p.name)}</div><div style="min-width:0;flex:1"><div class="patient-name">${p.name}</div><div class="patient-condition">${p.condition||'—'}</div></div><div class="patient-due-badge ${ar?'archived':du>0?'due':'clear'}">${ar?'📦':du>0?fM(du)+' Due':'✓'}</div></div><div class="patient-stats-row"><div class="patient-stat"><div class="patient-stat-value">${pv.length}</div><div class="patient-stat-label">Visits</div></div><div class="patient-stat"><div class="patient-stat-value" style="color:var(--accent-green)">${fM(pd)}</div><div class="patient-stat-label">Paid</div></div><div class="patient-stat"><div class="patient-stat-value" style="color:${du>0?'var(--accent-red)':'var(--text-tertiary)'}">${fM(du)}</div><div class="patient-stat-label">Due</div></div></div><div class="patient-actions" onclick="event.stopPropagation()">${ar?`<button class="patient-action-btn" onclick="event.stopPropagation();dPid='${p.id}';togAr()">♻️ Restore</button>`:`<button class="patient-action-btn primary" onclick="event.stopPropagation();pSel('${p.id}');openModal('addVisit')">📝 Log</button>`}<button class="patient-action-btn" onclick="event.stopPropagation();showDet('${p.id}')">📅</button></div></div>`;}
+function pSel(id){setTimeout(()=>{document.getElementById('vP').value=id;autoFee();},150);}
 
-function pC(p,ar=false){const pv=D.visits.filter(v=>v.patientId===p.id),pd=pv.filter(v=>v.status==='paid').reduce((s,v)=>s+v.amount,0)+pv.filter(v=>v.status==='partial').reduce((s,v)=>s+v.partialAmount,0),du=pv.filter(v=>v.status==='due').reduce((s,v)=>s+v.amount,0)+pv.filter(v=>v.status==='partial').reduce((s,v)=>s+(v.amount-v.partialAmount),0);
-return`<div class="patient-card ${ar?'archived-card':''}" onclick="showD('${p.id}')"><div class="patient-card-top"><div class="patient-avatar" style="background:${p.color}">${ini(p.name)}</div><div style="min-width:0;flex:1"><div class="patient-name">${p.name}</div><div class="patient-condition">${p.condition||'—'}</div></div><div class="patient-due-badge ${ar?'archived':du>0?'due':'clear'}">${ar?'📦':du>0?fM(du)+' Due':'✓'}</div></div><div class="patient-stats-row"><div class="patient-stat"><div class="patient-stat-value">${pv.length}</div><div class="patient-stat-label">Visits</div></div><div class="patient-stat"><div class="patient-stat-value" style="color:var(--accent-green)">${fM(pd)}</div><div class="patient-stat-label">Paid</div></div><div class="patient-stat"><div class="patient-stat-value" style="color:${du>0?'var(--accent-red)':'var(--text-tertiary)'}">${fM(du)}</div><div class="patient-stat-label">Due</div></div></div><div class="patient-actions" onclick="event.stopPropagation()">${ar?`<button class="patient-action-btn" onclick="event.stopPropagation();dPid='${p.id}';toggleArchive()">♻️ Restore</button>`:`<button class="patient-action-btn primary" onclick="event.stopPropagation();pSel('${p.id}');openModal('addVisit')">📝 Log</button>`}<button class="patient-action-btn" onclick="event.stopPropagation();showD('${p.id}')">📅</button></div></div>`;}
-function pSel(id){setTimeout(()=>{document.getElementById('visitPatient').value=id;autofillFee();},150);}
+function rDashP(){const c=document.getElementById('dashP');c.innerHTML='';if(!AP().length){c.innerHTML='<div class="empty-state"><div class="empty-state-icon">👥</div><h3>No patients</h3><button class="btn btn-primary" onclick="openModal(\'addPatient\')">+ Add</button></div>';return;}AP().forEach(p=>{c.innerHTML+=pCard(p);});}
+function rPatG(){const c=document.getElementById('pGrid'),n=document.getElementById('noP');c.innerHTML='';if(!AP().length){n.style.display='block';return;}n.style.display='none';AP().forEach(p=>{c.innerHTML+=pCard(p);});}
+function rArch(){const c=document.getElementById('arG'),n=document.getElementById('noA');c.innerHTML='';if(!ARP().length){n.style.display='block';return;}n.style.display='none';ARP().forEach(p=>{c.innerHTML+=pCard(p,true);});}
+function rTodayV(){const today=fm(new Date()),tv=D.visits.filter(v=>v.date===today).sort((a,b)=>b.id.localeCompare(a.id)),c=document.getElementById('todayVL');if(!tv.length){c.innerHTML='<div class="empty-state" style="padding:20px"><div class="empty-state-icon">📋</div><h3>No visits today</h3></div>';return;}let h='<div class="visit-cards">';tv.forEach(v=>{const p=D.patients.find(x=>x.id===v.patientId);if(!p)return;h+=`<div class="visit-card-item"><div class="visit-avatar" style="background:${p.color};flex-shrink:0">${ini(p.name)}</div><div class="visit-card-left"><div class="visit-card-name">${p.name}</div><div class="visit-card-meta">${v.notes||p.condition||''}</div></div><div class="visit-card-right"><div class="visit-card-amount">${fM(v.amount)}</div><span class="payment-badge ${v.status}" onclick="tPay('${v.id}')"><span class="badge-dot"></span>${v.status==='paid'?'Paid':v.status==='partial'?'Part.':'Due'}</span></div></div>`;});h+='</div>';c.innerHTML=h;}
 
-function rTV(){const today=fm(new Date()),tv=D.visits.filter(v=>v.date===today).sort((a,b)=>b.id.localeCompare(a.id)),c=document.getElementById('todayVisitsList');if(!tv.length){c.innerHTML='<div class="empty-state" style="padding:20px"><div class="empty-state-icon">📋</div><h3>No visits today</h3></div>';return;}let h='<div class="visit-cards">';tv.forEach(v=>{const p=D.patients.find(x=>x.id===v.patientId);if(!p)return;h+=`<div class="visit-card-item"><div class="visit-avatar" style="background:${p.color};flex-shrink:0">${ini(p.name)}</div><div class="visit-card-left"><div class="visit-card-name">${p.name}</div><div class="visit-card-meta"><span>${v.notes||p.condition||''}</span></div></div><div class="visit-card-right"><div class="visit-card-amount">${fM(v.amount)}</div><span class="payment-badge ${v.status}" onclick="tP('${v.id}')"><span class="badge-dot"></span>${v.status==='paid'?'Paid':v.status==='partial'?'Part.':'Due'}</span></div></div>`;});h+='</div>';c.innerHTML=h;}
+function rCal(){const y=calDt.getFullYear(),m=calDt.getMonth(),fd=new Date(y,m,1),sd=fd.getDay(),dim=new Date(y,m+1,0).getDate(),today=fm(new Date());document.getElementById('calM').textContent=fd.toLocaleDateString('en-IN',{month:'short',year:'numeric'});const fp=document.getElementById('calF').value,fv=fp==='all'?D.visits:D.visits.filter(v=>v.patientId===fp);let h='';['S','M','T','W','T','F','S'].forEach(d=>{h+=`<div class="calendar-day-header">${d}</div>`;});const pmd=new Date(y,m,0).getDate();for(let i=sd-1;i>=0;i--)h+=`<div class="calendar-day other-month"><div class="calendar-date">${pmd-i}</div></div>`;for(let day=1;day<=dim;day++){const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`,it=ds===today,dv=fv.filter(v=>v.date===ds);let ev='';dv.slice(0,2).forEach(v=>{const p=D.patients.find(x=>x.id===v.patientId);if(p)ev+=`<span class="calendar-event ${v.status}" onclick="event.stopPropagation();tPay('${v.id}')">${p.name.split(' ')[0]}</span>`;});if(dv.length>2)ev+=`<span style="font-size:8px;color:var(--text-tertiary)">+${dv.length-2}</span>`;h+=`<div class="calendar-day ${it?'today':''}" onclick="document.getElementById('vD').value='${ds}';openModal('addVisit')"><div class="calendar-date">${day}</div>${ev}</div>`;}const tc=sd+dim,rem=tc%7===0?0:7-(tc%7);for(let i=1;i<=rem;i++)h+=`<div class="calendar-day other-month"><div class="calendar-date">${i}</div></div>`;document.getElementById('calG').innerHTML=h;}
+function chM(d){calDt.setMonth(calDt.getMonth()+d);rCal();}
+function goT(){calDt=new Date();rCal();}
 
-function renderCalendar(){const y=calDate.getFullYear(),m=calDate.getMonth(),fd=new Date(y,m,1),sd=fd.getDay(),dim=new Date(y,m+1,0).getDate(),today=fm(new Date());document.getElementById('calendarMonth').textContent=fd.toLocaleDateString('en-IN',{month:'short',year:'numeric'});const fp=document.getElementById('calendarPatientFilter').value,fv=fp==='all'?D.visits:D.visits.filter(v=>v.patientId===fp);let h='';['S','M','T','W','T','F','S'].forEach(d=>{h+=`<div class="calendar-day-header">${d}</div>`;});const pmd=new Date(y,m,0).getDate();for(let i=sd-1;i>=0;i--)h+=`<div class="calendar-day other-month"><div class="calendar-date">${pmd-i}</div></div>`;for(let day=1;day<=dim;day++){const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`,it=ds===today,dv=fv.filter(v=>v.date===ds);let ev='';dv.slice(0,2).forEach(v=>{const p=D.patients.find(x=>x.id===v.patientId);if(p)ev+=`<span class="calendar-event ${v.status}" onclick="event.stopPropagation();tP('${v.id}')">${p.name.split(' ')[0]}</span>`;});if(dv.length>2)ev+=`<span style="font-size:8px;color:var(--text-tertiary)">+${dv.length-2}</span>`;h+=`<div class="calendar-day ${it?'today':''}" onclick="document.getElementById('visitDate').value='${ds}';openModal('addVisit')"><div class="calendar-date">${day}</div>${ev}</div>`;}const tc=sd+dim,rem=tc%7===0?0:7-(tc%7);for(let i=1;i<=rem;i++)h+=`<div class="calendar-day other-month"><div class="calendar-date">${i}</div></div>`;document.getElementById('calendarGrid').innerHTML=h;}
-function changeMonth(d){calDate.setMonth(calDate.getMonth()+d);renderCalendar();}
-function goToToday(){calDate=new Date();renderCalendar();}
+function rVL(){const fp=document.getElementById('vPF').value,fs=document.getElementById('vSF').value;let vs=[...D.visits].sort((a,b)=>b.date.localeCompare(a.date));if(fp!=='all')vs=vs.filter(v=>v.patientId===fp);if(fs!=='all')vs=vs.filter(v=>v.status===fs);const c=document.getElementById('vLC');if(!vs.length){c.innerHTML='<div class="empty-state"><div class="empty-state-icon">📋</div><h3>No visits</h3></div>';return;}let h='<div class="visit-cards">';vs.slice(0,100).forEach(v=>{const p=D.patients.find(x=>x.id===v.patientId);if(!p)return;h+=`<div class="visit-card-item" onclick="showDet('${p.id}')"><div class="visit-avatar" style="background:${p.color};flex-shrink:0">${ini(p.name)}</div><div class="visit-card-left"><div class="visit-card-name">${p.name}</div><div class="visit-card-meta">${fD(v.date)}</div></div><div class="visit-card-right"><div class="visit-card-amount">${fM(v.amount)}</div><span class="payment-badge ${v.status}" onclick="event.stopPropagation();tPay('${v.id}')"><span class="badge-dot"></span>${v.status==='paid'?'Paid':v.status==='partial'?'Part.':'Due'}</span></div></div>`;});h+='</div>';c.innerHTML=h;}
+function rDues(){const dv=D.visits.filter(v=>v.status!=='paid').sort((a,b)=>b.date.localeCompare(a.date)),c=document.getElementById('dL'),td=cDue();document.getElementById('dHB').innerHTML=td>0?`<div class="due-highlight"><div class="due-highlight-text">⚠️ Total</div><div class="due-highlight-amount">${fM(td)}</div></div>`:'<div style="text-align:center;padding:14px;color:var(--accent-green);font-weight:600">🎉 All clear!</div>';if(!dv.length){c.innerHTML='<div class="empty-state"><div class="empty-state-icon">🎉</div><h3>No dues!</h3></div>';return;}let h='<div class="visit-cards">';dv.forEach(v=>{const p=D.patients.find(x=>x.id===v.patientId);if(!p)return;const da=v.status==='partial'?(v.amount-v.partialAmount):v.amount;h+=`<div class="visit-card-item"><div class="visit-avatar" style="background:${p.color};flex-shrink:0">${ini(p.name)}</div><div class="visit-card-left"><div class="visit-card-name">${p.name}</div><div class="visit-card-meta">${fD(v.date)} · <span class="amount red">${fM(da)}</span></div></div><div class="visit-card-right"><button class="btn btn-green" style="padding:6px 14px;font-size:11px;min-height:34px" onclick="tPay('${v.id}')">✅</button></div></div>`;});h+='</div>';c.innerHTML=h;}
+function rColl(){const pv=D.visits.filter(v=>v.status==='paid').sort((a,b)=>b.date.localeCompare(a.date)),c=document.getElementById('cL'),tc=pv.reduce((s,v)=>s+v.amount,0);document.getElementById('cH').innerHTML=`<div class="due-highlight" style="border-color:rgba(52,211,153,0.18);background:rgba(52,211,153,0.06)"><div class="due-highlight-text" style="color:var(--accent-green)">✅ Total</div><div class="due-highlight-amount" style="color:var(--accent-green)">${fM(tc)}</div></div>`;if(!pv.length){c.innerHTML='<div class="empty-state"><div class="empty-state-icon">💰</div><h3>None yet</h3></div>';return;}let h='<div class="visit-cards">';pv.slice(0,60).forEach(v=>{const p=D.patients.find(x=>x.id===v.patientId);if(!p)return;h+=`<div class="visit-card-item"><div class="visit-avatar" style="background:${p.color};flex-shrink:0">${ini(p.name)}</div><div class="visit-card-left"><div class="visit-card-name">${p.name}</div><div class="visit-card-meta">${fD(v.date)}</div></div><div class="visit-card-right"><div class="visit-card-amount" style="color:var(--accent-green)">${fM(v.amount)}</div></div></div>`;});h+='</div>';c.innerHTML=h;}
 
-function renderVL(){const fp=document.getElementById('visitsPatientFilter').value,fs=document.getElementById('visitsStatusFilter').value;let vs=[...D.visits].sort((a,b)=>b.date.localeCompare(a.date));if(fp!=='all')vs=vs.filter(v=>v.patientId===fp);if(fs!=='all')vs=vs.filter(v=>v.status===fs);const c=document.getElementById('visitsListContainer');if(!vs.length){c.innerHTML='<div class="empty-state"><div class="empty-state-icon">📋</div><h3>No visits</h3></div>';return;}let h='<div class="visit-cards">';vs.slice(0,100).forEach(v=>{const p=D.patients.find(x=>x.id===v.patientId);if(!p)return;h+=`<div class="visit-card-item" onclick="showD('${p.id}')"><div class="visit-avatar" style="background:${p.color};flex-shrink:0">${ini(p.name)}</div><div class="visit-card-left"><div class="visit-card-name">${p.name}</div><div class="visit-card-meta"><span>${fD(v.date)}</span></div></div><div class="visit-card-right"><div class="visit-card-amount">${fM(v.amount)}</div><span class="payment-badge ${v.status}" onclick="event.stopPropagation();tP('${v.id}')"><span class="badge-dot"></span>${v.status==='paid'?'Paid':v.status==='partial'?'Part.':'Due'}</span></div></div>`;});h+='</div>';c.innerHTML=h;}
-
-function rDues(){const dv=D.visits.filter(v=>v.status!=='paid').sort((a,b)=>b.date.localeCompare(a.date)),hb=document.getElementById('dueHighlightBox'),c=document.getElementById('duesList'),td=cDue();hb.innerHTML=td>0?`<div class="due-highlight"><div class="due-highlight-text">⚠️ Total</div><div class="due-highlight-amount">${fM(td)}</div></div>`:'<div style="text-align:center;padding:14px;color:var(--accent-green);font-weight:600">🎉 All clear!</div>';if(!dv.length){c.innerHTML='<div class="empty-state"><div class="empty-state-icon">🎉</div><h3>No dues!</h3></div>';return;}let h='<div class="visit-cards">';dv.forEach(v=>{const p=D.patients.find(x=>x.id===v.patientId);if(!p)return;const da=v.status==='partial'?(v.amount-v.partialAmount):v.amount;h+=`<div class="visit-card-item"><div class="visit-avatar" style="background:${p.color};flex-shrink:0">${ini(p.name)}</div><div class="visit-card-left"><div class="visit-card-name">${p.name}</div><div class="visit-card-meta"><span>${fD(v.date)}</span><span class="amount red">${fM(da)}</span></div></div><div class="visit-card-right"><button class="btn btn-green" style="padding:6px 12px;font-size:11px;min-height:34px" onclick="tP('${v.id}')">✅</button></div></div>`;});h+='</div>';c.innerHTML=h;}
-
-function rColl(){const pv=D.visits.filter(v=>v.status==='paid').sort((a,b)=>b.date.localeCompare(a.date)),c=document.getElementById('collectedList'),hb=document.getElementById('collectedHighlight'),tc=pv.reduce((s,v)=>s+v.amount,0);hb.innerHTML=`<div class="due-highlight" style="border-color:rgba(52,211,153,0.15);background:rgba(52,211,153,0.05)"><div class="due-highlight-text" style="color:var(--accent-green)">✅ Total</div><div class="due-highlight-amount" style="color:var(--accent-green)">${fM(tc)}</div></div>`;if(!pv.length){c.innerHTML='<div class="empty-state"><div class="empty-state-icon">💰</div><h3>None yet</h3></div>';return;}let h='<div class="visit-cards">';pv.slice(0,60).forEach(v=>{const p=D.patients.find(x=>x.id===v.patientId);if(!p)return;h+=`<div class="visit-card-item"><div class="visit-avatar" style="background:${p.color};flex-shrink:0">${ini(p.name)}</div><div class="visit-card-left"><div class="visit-card-name">${p.name}</div><div class="visit-card-meta">${fD(v.date)}</div></div><div class="visit-card-right"><div class="visit-card-amount" style="color:var(--accent-green)">${fM(v.amount)}</div></div></div>`;});h+='</div>';c.innerHTML=h;}
-
-// DETAIL
-function showD(pid){dPid=pid;dCalDate=new Date();const p=D.patients.find(x=>x.id===pid);if(!p)return;document.getElementById('detailTitle').innerHTML=`<div style="width:26px;height:26px;border-radius:50%;background:${p.color};display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--bg-primary)">${ini(p.name)}</div>${p.name}`;document.getElementById('archiveBtn').textContent=p.archived?'♻️':'📦';rDB(p);openModal('patientDetail');}
-function rDB(p){if(!p)p=D.patients.find(x=>x.id===dPid);if(!p)return;const pv=D.visits.filter(v=>v.patientId===p.id),pd=pv.filter(v=>v.status==='paid').reduce((s,v)=>s+v.amount,0)+pv.filter(v=>v.status==='partial').reduce((s,v)=>s+v.partialAmount,0),du=pv.filter(v=>v.status==='due').reduce((s,v)=>s+v.amount,0)+pv.filter(v=>v.status==='partial').reduce((s,v)=>s+(v.amount-v.partialAmount),0),lv=pv.sort((a,b)=>b.date.localeCompare(a.date))[0];
+// ============ PATIENT DETAIL ============
+function showDet(pid){dPid=pid;dCDt=new Date();const p=D.patients.find(x=>x.id===pid);if(!p)return;document.getElementById('dT').innerHTML=`<div style="width:26px;height:26px;border-radius:50%;background:${p.color};display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--bg-primary)">${ini(p.name)}</div>${p.name}`;document.getElementById('arBtn').textContent=p.archived?'♻️':'📦';rDetB(p);openModal('detail');}
+function rDetB(p){if(!p)p=D.patients.find(x=>x.id===dPid);if(!p)return;const pv=D.visits.filter(v=>v.patientId===p.id),pd=pv.filter(v=>v.status==='paid').reduce((s,v)=>s+v.amount,0)+pv.filter(v=>v.status==='partial').reduce((s,v)=>s+v.partialAmount,0),du=pv.filter(v=>v.status==='due').reduce((s,v)=>s+v.amount,0)+pv.filter(v=>v.status==='partial').reduce((s,v)=>s+(v.amount-v.partialAmount),0),lv=[...pv].sort((a,b)=>b.date.localeCompare(a.date))[0];
 let h=`<div class="detail-stats"><div class="detail-stat"><div class="detail-stat-value">${pv.length}</div><div class="detail-stat-label">Visits</div></div><div class="detail-stat"><div class="detail-stat-value" style="color:var(--accent-green)">${fM(pd)}</div><div class="detail-stat-label">Paid</div></div><div class="detail-stat"><div class="detail-stat-value" style="color:${du>0?'var(--accent-red)':'var(--text-tertiary)'}">${fM(du)}</div><div class="detail-stat-label">Due</div></div><div class="detail-stat"><div class="detail-stat-value">${fM(p.fee)}</div><div class="detail-stat-label">Fee</div></div></div>`;
 if(p.condition)h+=`<div class="detail-info"><span class="detail-info-label">Condition</span><span class="detail-info-value">${p.condition}</span></div>`;
 if(p.phone)h+=`<div class="detail-info"><span class="detail-info-label">Phone</span><a href="tel:${p.phone}" style="color:var(--accent-blue);text-decoration:none">${p.phone}</a></div>`;
 if(p.address)h+=`<div class="detail-info"><span class="detail-info-label">Address</span><span class="detail-info-value">${p.address}</span></div>`;
 if(lv)h+=`<div class="detail-info"><span class="detail-info-label">Last</span><span class="detail-info-value">${fD(lv.date)}</span></div>`;
-const cy=dCalDate.getFullYear(),cm=dCalDate.getMonth(),mN=new Date(cy,cm,1).toLocaleDateString('en-IN',{month:'short',year:'numeric'});
-h+=`<div class="pcal-header"><div class="pcal-title">📅 Calendar</div><div class="pcal-nav"><button class="pcal-nav-btn" onclick="dcm(-1)">◀</button><div class="pcal-month">${mN}</div><button class="pcal-nav-btn" onclick="dcm(1)">▶</button></div></div><div class="pcal-grid">`;
+const cy=dCDt.getFullYear(),cm=dCDt.getMonth(),mN=new Date(cy,cm,1).toLocaleDateString('en-IN',{month:'short',year:'numeric'});
+h+=`<div class="pcal-header"><div class="pcal-title">📅 Calendar</div><div class="pcal-nav"><button class="pcal-nav-btn" onclick="dChM(-1)">◀</button><div class="pcal-month">${mN}</div><button class="pcal-nav-btn" onclick="dChM(1)">▶</button></div></div><div class="pcal-grid">`;
 ['S','M','T','W','T','F','S'].forEach(d=>{h+=`<div class="pcal-day-header">${d}</div>`;});
 const sd=new Date(cy,cm,1).getDay(),dim=new Date(cy,cm+1,0).getDate(),today=fm(new Date()),pmd=new Date(cy,cm,0).getDate();
 for(let i=sd-1;i>=0;i--)h+=`<div class="pcal-day other">${pmd-i}</div>`;
-for(let day=1;day<=dim;day++){const ds=`${cy}-${String(cm+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`,it=ds===today,dv=pv.find(v=>v.date===ds);let cls='no-visit';if(dv){cls='visited-'+dv.status;if(dv.status==='partial')cls='visited-partial';}if(it)cls+=' today-pcal';const cl=dv?`onclick="tP('${dv.id}')"`:`onclick="qL('${ds}')"`;h+=`<div class="pcal-day ${cls}" ${cl}>${day}</div>`;}
+for(let day=1;day<=dim;day++){const ds=`${cy}-${String(cm+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`,it=ds===today,dv=pv.find(v=>v.date===ds);let cls='no-visit';if(dv){cls='visited-'+(dv.status==='partial'?'partial':dv.status);}if(it)cls+=' today-pcal';const cl=dv?`onclick="tPay('${dv.id}')"`:`onclick="qLog('${ds}')"`;h+=`<div class="pcal-day ${cls}" ${cl}>${day}</div>`;}
 const tc2=sd+dim,rem2=tc2%7===0?0:7-(tc2%7);for(let i=1;i<=rem2;i++)h+=`<div class="pcal-day other">${i}</div>`;
 h+=`</div><div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:4px"><div class="legend-item"><div class="legend-dot paid"></div>Paid</div><div class="legend-item"><div class="legend-dot due"></div>Due</div><div class="legend-item"><div class="legend-dot partial"></div>Part.</div></div>`;
-const svv=[...pv].sort((a,b)=>b.date.localeCompare(a.date));if(svv.length){h+=`<div style="font-size:12px;font-weight:600;margin-top:12px;margin-bottom:6px">📋 History (${svv.length})</div><div class="detail-visit-list">`;svv.forEach(v=>{const sl=v.status==='paid'?'✅':v.status==='partial'?'🔄':'⏳';h+=`<div class="detail-visit-item"><div class="detail-visit-date">${fD(v.date)}</div><div class="detail-visit-right"><span class="amount" style="font-size:13px">${fM(v.amount)}</span><span class="payment-badge ${v.status}" onclick="tP('${v.id}')" style="font-size:9px"><span class="badge-dot"></span>${sl}</span><button class="visit-action-btn" onclick="event.stopPropagation();delV('${v.id}')" style="width:24px;height:24px;font-size:10px">🗑️</button></div></div>`;});h+=`</div>`;}document.getElementById('detailBody').innerHTML=h;}
-function dcm(d){dCalDate.setMonth(dCalDate.getMonth()+d);rDB();}
-function qL(ds){const p=D.patients.find(x=>x.id===dPid);if(!p)return;D.visits.push({id:gid(),patientId:p.id,date:ds,amount:p.fee,status:'due',partialAmount:0,notes:''});sv();R();rDB();toast('Visit added','info');}
-function logForDetail(){closeModal('patientDetail');setTimeout(()=>{pSel(dPid);openModal('addVisit');},200);}
+const sv2=[...pv].sort((a,b)=>b.date.localeCompare(a.date));if(sv2.length){h+=`<div style="font-size:12px;font-weight:600;margin-top:12px;margin-bottom:6px">📋 History (${sv2.length})</div><div class="detail-visit-list">`;sv2.forEach(v=>{const sl=v.status==='paid'?'✅':v.status==='partial'?'🔄':'⏳';h+=`<div class="detail-visit-item"><div class="detail-visit-date">${fD(v.date)}</div><div class="detail-visit-right"><span class="amount" style="font-size:13px">${fM(v.amount)}</span><span class="payment-badge ${v.status}" onclick="tPay('${v.id}')" style="font-size:9px"><span class="badge-dot"></span>${sl}</span><button class="visit-action-btn" onclick="event.stopPropagation();delV('${v.id}')" style="width:24px;height:24px;font-size:10px">🗑️</button></div></div>`;});h+=`</div>`;}document.getElementById('dB').innerHTML=h;}
+function dChM(d){dCDt.setMonth(dCDt.getMonth()+d);rDetB();}
+function qLog(ds){const p=D.patients.find(x=>x.id===dPid);if(!p)return;D.visits.push({id:gid(),patientId:p.id,date:ds,amount:p.fee,status:'due',partialAmount:0,notes:''});sv();R();rDetB();toast('Visit added','info');}
+function logForD(){closeModal('detail');setTimeout(()=>{pSel(dPid);openModal('addVisit');},200);}
 
-// INVOICE
-function rIC(){const c=document.getElementById('invoiceCreator');let h=`<div class="settings-section"><div class="settings-section-title">🧾 Generate</div><div class="form-group"><label class="form-label">Patient</label><select class="form-select" id="invoicePatient"><option value="">Choose...</option>`;D.patients.forEach(p=>{h+=`<option value="${p.id}">${p.name}</option>`;});h+=`</select></div><div class="form-row"><div class="form-group"><label class="form-label">From</label><input type="date" class="form-input" id="invoiceFrom"></div><div class="form-group"><label class="form-label">To</label><input type="date" class="form-input" id="invoiceTo"></div></div><div class="form-group"><label class="form-label">Filter</label><select class="form-select" id="invoiceFilter"><option value="all">All</option><option value="due">Due</option><option value="paid">Paid</option></select></div><button class="btn btn-primary" onclick="genInv()" style="width:100%">🧾 Generate</button></div>`;c.innerHTML=h;const now=new Date();document.getElementById('invoiceTo').value=fm(now);const fr=new Date(now);fr.setMonth(fr.getMonth()-1);document.getElementById('invoiceFrom').value=fm(fr);}
-function genInv(){const pid=document.getElementById('invoicePatient').value;if(!pid){toast('Select patient','error');return;}const p=D.patients.find(x=>x.id===pid);if(!p)return;const fr=document.getElementById('invoiceFrom').value,to=document.getElementById('invoiceTo').value,fl=document.getElementById('invoiceFilter').value;let vs=D.visits.filter(v=>v.patientId===pid&&v.date>=fr&&v.date<=to).sort((a,b)=>a.date.localeCompare(b.date));if(fl==='due')vs=vs.filter(v=>v.status!=='paid');if(fl==='paid')vs=vs.filter(v=>v.status==='paid');if(!vs.length){toast('No visits','error');return;}const num=D.settings.invoicePrefix+'-'+String(D.settings.invoiceCounter).padStart(4,'0');D.settings.invoiceCounter++;sv();const ta=vs.reduce((s,v)=>s+v.amount,0),tp=vs.filter(v=>v.status==='paid').reduce((s,v)=>s+v.amount,0)+vs.filter(v=>v.status==='partial').reduce((s,v)=>s+v.partialAmount,0);curInv={patient:p,visits:vs,invNum:num,totalAmount:ta,totalPaid:tp,totalDue:ta-tp,from:fr,to,date:fm(new Date())};rIP();openModal('invoicePreview');}
-function openInvForP(){closeModal('patientDetail');setTimeout(()=>{switchView('invoices');document.getElementById('invoicePatient').value=dPid;},200);}
-function rIP(){const d=curInv;if(!d)return;const s=D.settings,f=s.invoiceFields;let h=`<div class="invoice-preview" id="invArea"><div class="invoice-header-row"><div class="invoice-brand"><h2>${s.clinicName}</h2><p>${s.doctorName}</p>${s.phone?`<p>📞 ${s.phone}</p>`:''}${f.showGST&&s.gstNumber?`<p>GST: ${s.gstNumber}</p>`:''}</div><div class="invoice-number"><h3>${d.invNum}</h3><p>${fD(d.date)}</p></div></div><div class="invoice-parties"><div class="invoice-party"><h4>Bill To</h4><p><strong>${d.patient.name}</strong></p>${f.showPhone&&d.patient.phone?`<p>📞 ${d.patient.phone}</p>`:''}</div></div><div style="overflow-x:auto"><table class="invoice-table"><thead><tr><th>#</th><th>Date</th><th>Status</th><th>Amount</th></tr></thead><tbody>`;d.visits.forEach((v,i)=>{h+=`<tr><td>${i+1}</td><td>${fD(v.date)}</td><td>${v.status==='paid'?'Paid':v.status==='partial'?'Partial':'Due'}</td><td>${s.currency}${v.amount.toLocaleString('en-IN')}</td></tr>`;});h+=`</tbody></table></div><div class="invoice-totals"><div class="invoice-totals-box"><div class="invoice-total-row"><span>Sessions:</span><span>${d.visits.length}</span></div><div class="invoice-total-row"><span>Paid:</span><span style="color:#34d399!important">${s.currency}${d.totalPaid.toLocaleString('en-IN')}</span></div>${f.showDueAmount?`<div class="invoice-total-row due-row"><span>Due:</span><span>${s.currency}${d.totalDue.toLocaleString('en-IN')}</span></div>`:''}<div class="invoice-total-row grand"><span>Total:</span><span>${s.currency}${d.totalAmount.toLocaleString('en-IN')}</span></div></div></div>${f.showNotes?`<div class="invoice-footer">Thank you! 🙏</div>`:''}</div>`;document.getElementById('invoicePreviewContent').innerHTML=h;}
-function sendWA(){if(!curInv)return;const d=curInv,s=D.settings;let ph=d.patient.phone.replace(/[^0-9]/g,'');if(ph.length===10)ph='91'+ph;let m=`🧾 *INVOICE ${d.invNum}*\n*${s.doctorName}*\nTo: *${d.patient.name}*\n\n`;d.visits.forEach((v,i)=>{m+=`${i+1}. ${fD(v.date)} — ${s.currency}${v.amount} ${v.status==='paid'?'✅':'⏳'}\n`;});m+=`\n*Total: ${s.currency}${d.totalAmount.toLocaleString('en-IN')}*`;if(d.totalDue>0)m+=`\n*Due: ${s.currency}${d.totalDue.toLocaleString('en-IN')}*`;m+='\n\nThank you! 🙏';window.open(ph?`https://wa.me/${ph}?text=${encodeURIComponent(m)}`:`https://wa.me/?text=${encodeURIComponent(m)}`,'_blank');toast('WhatsApp...','success');}
-function dlPDF(){const el=document.getElementById('invArea');if(!el)return;const w=window.open('','_blank');w.document.write(`<!DOCTYPE html><html><head><title>Invoice</title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter';padding:16px;color:#111}.invoice-preview{padding:20px;max-width:700px;margin:auto}.invoice-header-row{display:flex;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #4d7cfe;flex-wrap:wrap;gap:12px}.invoice-brand h2{font-family:'Space Grotesk';font-size:18px;color:#4d7cfe}.invoice-brand p,.invoice-number p{font-size:10px;color:#666}.invoice-number{text-align:right}.invoice-number h3{font-size:18px;font-family:'Space Grotesk';color:#4d7cfe}.invoice-parties{margin-bottom:16px}.invoice-party h4{font-size:9px;text-transform:uppercase;color:#999;margin-bottom:4px}.invoice-party p{font-size:11px;color:#333}.invoice-table{width:100%;border-collapse:collapse;margin-bottom:16px}.invoice-table thead th{background:#f8f9fb;padding:8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #eee;text-align:left}.invoice-table thead th:last-child{text-align:right}.invoice-table tbody td{padding:8px;font-size:11px;border-bottom:1px solid #f0f0f0;color:#333}.invoice-table tbody td:last-child{text-align:right;font-weight:600}.invoice-totals{display:flex;justify-content:flex-end;margin-bottom:16px}.invoice-totals-box{min-width:160px}.invoice-total-row{display:flex;justify-content:space-between;padding:4px 0;font-size:11px;color:#555}.invoice-total-row.grand{font-size:14px;font-weight:700;color:#111;border-top:2px solid #4d7cfe;padding-top:8px;margin-top:4px}.invoice-total-row.due-row{color:#e53e3e;font-weight:600}.invoice-footer{text-align:center;font-size:9px;color:#999;padding-top:12px;border-top:1px solid #eee}</style></head><body>${el.outerHTML}<script>setTimeout(()=>window.print(),600)<\/script></body></html>`);w.document.close();toast('PDF ready','success');}
+// ============ INVOICE ============
+function rInvC(){const c=document.getElementById('invC');let h=`<div class="settings-section"><div class="settings-section-title">🧾 Generate</div><div class="form-group"><label class="form-label">Patient</label><select class="form-select" id="invP"><option value="">Choose...</option>`;D.patients.forEach(p=>{h+=`<option value="${p.id}">${p.name}</option>`;});h+=`</select></div><div class="form-row"><div class="form-group"><label class="form-label">From</label><input type="date" class="form-input" id="invFr"></div><div class="form-group"><label class="form-label">To</label><input type="date" class="form-input" id="invTo"></div></div><div class="form-group"><label class="form-label">Filter</label><select class="form-select" id="invFl"><option value="all">All</option><option value="due">Due</option><option value="paid">Paid</option></select></div><button class="btn btn-primary" onclick="genInv()" style="width:100%">🧾 Generate</button></div>`;c.innerHTML=h;const now=new Date();document.getElementById('invTo').value=fm(now);const fr=new Date(now);fr.setMonth(fr.getMonth()-1);document.getElementById('invFr').value=fm(fr);}
+function genInv(){const pid=document.getElementById('invP').value;if(!pid){toast('Select patient','error');return;}const p=D.patients.find(x=>x.id===pid);if(!p)return;const fr=document.getElementById('invFr').value,to=document.getElementById('invTo').value,fl=document.getElementById('invFl').value;let vs=D.visits.filter(v=>v.patientId===pid&&v.date>=fr&&v.date<=to).sort((a,b)=>a.date.localeCompare(b.date));if(fl==='due')vs=vs.filter(v=>v.status!=='paid');if(fl==='paid')vs=vs.filter(v=>v.status==='paid');if(!vs.length){toast('No visits','error');return;}const num=D.settings.invoicePrefix+'-'+String(D.settings.invoiceCounter).padStart(4,'0');D.settings.invoiceCounter++;sv();const ta=vs.reduce((s,v)=>s+v.amount,0),tp=vs.filter(v=>v.status==='paid').reduce((s,v)=>s+v.amount,0)+vs.filter(v=>v.status==='partial').reduce((s,v)=>s+v.partialAmount,0);cInv={patient:p,visits:vs,invNum:num,totalAmount:ta,totalPaid:tp,totalDue:ta-tp,from:fr,to,date:fm(new Date())};rInvP();openModal('inv');}
+function invForP(){closeModal('detail');setTimeout(()=>{switchView('invoices');document.getElementById('invP').value=dPid;},200);}
+function rInvP(){const d=cInv;if(!d)return;const s=D.settings,f=s.invoiceFields;let h=`<div class="invoice-preview" id="invArea"><div class="invoice-header-row"><div class="invoice-brand"><h2>${s.clinicName}</h2><p>${s.doctorName}</p>${s.phone?`<p>📞 ${s.phone}</p>`:''}${f.showGST&&s.gstNumber?`<p>GST: ${s.gstNumber}</p>`:''}</div><div class="invoice-number"><h3>${d.invNum}</h3><p>${fD(d.date)}</p></div></div><div class="invoice-parties"><div class="invoice-party"><h4>Bill To</h4><p><strong>${d.patient.name}</strong></p>${f.showPhone&&d.patient.phone?`<p>📞 ${d.patient.phone}</p>`:''}</div></div><div style="overflow-x:auto"><table class="invoice-table"><thead><tr><th>#</th><th>Date</th><th>Status</th><th>Amount</th></tr></thead><tbody>`;d.visits.forEach((v,i)=>{h+=`<tr><td>${i+1}</td><td>${fD(v.date)}</td><td>${v.status==='paid'?'Paid':v.status==='partial'?'Partial':'Due'}</td><td>${s.currency}${v.amount.toLocaleString('en-IN')}</td></tr>`;});h+=`</tbody></table></div><div class="invoice-totals"><div class="invoice-totals-box"><div class="invoice-total-row"><span>Sessions:</span><span>${d.visits.length}</span></div><div class="invoice-total-row"><span>Paid:</span><span style="color:#34d399!important">${s.currency}${d.totalPaid.toLocaleString('en-IN')}</span></div>${f.showDueAmount?`<div class="invoice-total-row due-row"><span>Due:</span><span>${s.currency}${d.totalDue.toLocaleString('en-IN')}</span></div>`:''}<div class="invoice-total-row grand"><span>Total:</span><span>${s.currency}${d.totalAmount.toLocaleString('en-IN')}</span></div></div></div>${f.showNotes?`<div class="invoice-footer">Thank you! 🙏</div>`:''}</div>`;document.getElementById('invPC').innerHTML=h;}
+function sendWA(){if(!cInv)return;const d=cInv,s=D.settings;let ph=d.patient.phone.replace(/[^0-9]/g,'');if(ph.length===10)ph='91'+ph;let m=`🧾 *INVOICE ${d.invNum}*\n*${s.doctorName}*\nTo: *${d.patient.name}*\n\n`;d.visits.forEach((v,i)=>{m+=`${i+1}. ${fD(v.date)} — ${s.currency}${v.amount} ${v.status==='paid'?'✅':'⏳'}\n`;});m+=`\n*Total: ${s.currency}${d.totalAmount.toLocaleString('en-IN')}*`;if(d.totalDue>0)m+=`\n*Due: ${s.currency}${d.totalDue.toLocaleString('en-IN')}*`;m+='\n\nThank you! 🙏';window.open(ph?`https://wa.me/${ph}?text=${encodeURIComponent(m)}`:`https://wa.me/?text=${encodeURIComponent(m)}`,'_blank');}
+function dlPDF(){const el=document.getElementById('invArea');if(!el)return;const w=window.open('','_blank');w.document.write(`<!DOCTYPE html><html><head><title>Invoice</title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter';padding:16px;color:#111}.invoice-preview{padding:20px;max-width:700px;margin:auto}.invoice-header-row{display:flex;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #4d7cfe;flex-wrap:wrap;gap:12px}.invoice-brand h2{font-family:'Space Grotesk';font-size:18px;color:#4d7cfe}.invoice-brand p,.invoice-number p{font-size:10px;color:#666}.invoice-number{text-align:right}.invoice-number h3{font-size:18px;font-family:'Space Grotesk';color:#4d7cfe}.invoice-parties{margin-bottom:16px}.invoice-party h4{font-size:9px;text-transform:uppercase;color:#999;margin-bottom:4px}.invoice-party p{font-size:11px;color:#333}.invoice-table{width:100%;border-collapse:collapse;margin-bottom:16px}.invoice-table thead th{background:#f8f9fb;padding:8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #eee;text-align:left}.invoice-table thead th:last-child{text-align:right}.invoice-table tbody td{padding:8px;font-size:11px;border-bottom:1px solid #f0f0f0;color:#333}.invoice-table tbody td:last-child{text-align:right;font-weight:600}.invoice-totals{display:flex;justify-content:flex-end;margin-bottom:16px}.invoice-totals-box{min-width:160px}.invoice-total-row{display:flex;justify-content:space-between;padding:4px 0;font-size:11px;color:#555}.invoice-total-row.grand{font-size:14px;font-weight:700;color:#111;border-top:2px solid #4d7cfe;padding-top:8px;margin-top:4px}.invoice-total-row.due-row{color:#e53e3e;font-weight:600}.invoice-footer{text-align:center;font-size:9px;color:#999;padding-top:12px;border-top:1px solid #eee}</style></head><body>${el.outerHTML}<script>setTimeout(()=>window.print(),600)<\/script></body></html>`);w.document.close();}
 
-// SETTINGS
-function rSet(){const s=D.settings,f=s.invoiceFields;document.getElementById('settingsContainer').innerHTML=`
+// ============ SETTINGS ============
+function rSettings(){const s=D.settings,f=s.invoiceFields;document.getElementById('setC').innerHTML=`
 <div class="settings-section"><div class="settings-section-title">👨‍⚕️ Profile</div>
 <div class="form-group"><label class="form-label">Doctor Name</label><input type="text" class="form-input" value="${s.doctorName}" onchange="D.settings.doctorName=this.value;sv();uSP()"></div>
 <div class="form-group"><label class="form-label">Clinic Name</label><input type="text" class="form-input" value="${s.clinicName}" onchange="D.settings.clinicName=this.value;sv()"></div>
 <div class="form-row"><div class="form-group"><label class="form-label">Phone</label><input type="tel" class="form-input" value="${s.phone}" onchange="D.settings.phone=this.value;sv()"></div><div class="form-group"><label class="form-label">GST</label><input type="text" class="form-input" value="${s.gstNumber}" onchange="D.settings.gstNumber=this.value;sv()"></div></div>
 <div class="form-group"><label class="form-label">Address</label><textarea class="form-input form-textarea" onchange="D.settings.address=this.value;sv()">${s.address}</textarea></div>
-<div class="form-row"><div class="form-group"><label class="form-label">Currency</label><input type="text" class="form-input" value="${s.currency}" onchange="D.settings.currency=this.value;sv();R()" maxlength="3"></div><div class="form-group"><label class="form-label">Invoice Prefix</label><input type="text" class="form-input" value="${s.invoicePrefix}" onchange="D.settings.invoicePrefix=this.value;sv()"></div></div></div>
+<div class="form-row"><div class="form-group"><label class="form-label">Currency</label><input type="text" class="form-input" value="${s.currency}" onchange="D.settings.currency=this.value;sv();R()" maxlength="3"></div><div class="form-group"><label class="form-label">Inv. Prefix</label><input type="text" class="form-input" value="${s.invoicePrefix}" onchange="D.settings.invoicePrefix=this.value;sv()"></div></div></div>
 <div class="settings-section"><div class="settings-section-title">🧾 Invoice Fields</div><div class="checkbox-list">
 <label class="checkbox-item"><input type="checkbox" ${f.showCondition?'checked':''} onchange="D.settings.invoiceFields.showCondition=this.checked;sv()"> Condition</label>
 <label class="checkbox-item"><input type="checkbox" ${f.showPhone?'checked':''} onchange="D.settings.invoiceFields.showPhone=this.checked;sv()"> Phone</label>
@@ -570,34 +920,45 @@ function rSet(){const s=D.settings,f=s.invoiceFields;document.getElementById('se
 <label class="checkbox-item"><input type="checkbox" ${f.showNotes?'checked':''} onchange="D.settings.invoiceFields.showNotes=this.checked;sv()"> Footer</label>
 </div></div>
 <div class="settings-section"><div class="settings-section-title">💾 Data</div>
-<div class="settings-row"><div class="settings-row-left"><div class="settings-row-label">Export Backup</div><div class="settings-row-desc">Download JSON</div></div><div class="settings-row-right"><button class="btn btn-primary" onclick="expB()" style="min-height:38px">📥</button></div></div>
-<div class="settings-row"><div class="settings-row-left"><div class="settings-row-label">Restore</div><div class="settings-row-desc">Upload JSON</div></div><div class="settings-row-right"><input type="file" id="restoreFile" accept=".json" style="display:none" onchange="impB(event)"><button class="btn btn-orange" onclick="document.getElementById('restoreFile').click()" style="min-height:38px">📤</button></div></div>
-<div class="settings-row"><div class="settings-row-left"><div class="settings-row-label">Reset All</div><div class="settings-row-desc">⚠️ Deletes everything</div></div><div class="settings-row-right"><button class="btn btn-red" onclick="resetA()" style="min-height:38px">🗑️</button></div></div></div>`;}
+<div class="settings-row"><div><div class="settings-row-label">Export Backup</div><div class="settings-row-desc">Download JSON</div></div><div><button class="btn btn-primary" onclick="expB()" style="min-height:38px">📥 Export</button></div></div>
+<div class="settings-row"><div><div class="settings-row-label">Restore</div><div class="settings-row-desc">Upload JSON</div></div><div><input type="file" id="rFile" accept=".json" style="display:none" onchange="impB(event)"><button class="btn btn-orange" onclick="document.getElementById('rFile').click()" style="min-height:38px">📤 Import</button></div></div>
+<div class="settings-row"><div><div class="settings-row-label">Reset All</div><div class="settings-row-desc">⚠️ Deletes everything</div></div><div><button class="btn btn-red" onclick="resetAll()" style="min-height:38px">🗑️ Reset</button></div></div></div>`;}
 function expB(){const b=new Blob([JSON.stringify(D,null,2)],{type:'application/json'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=`physio_${fm(new Date())}.json`;a.click();URL.revokeObjectURL(u);toast('Exported!','success');}
-function impB(e){const f=e.target.files[0];if(!f)return;if(!confirm('Replace ALL data?'))return;const r=new FileReader();r.onload=function(ev){try{const i=JSON.parse(ev.target.result);if(!i.patients||!i.visits){toast('Invalid','error');return;}D=i;if(!D.settings)D.settings={doctorName:'Dr. Physio',clinicName:'PhysioTracker',phone:'',address:'',gstNumber:'',invoicePrefix:'INV',invoiceCounter:1,invoiceFields:{showGST:false,showCondition:true,showAddress:true,showPhone:true,showNotes:true,showDueAmount:true},currency:'₹'};sv();R();toast('Restored!','success');}catch(err){toast('Error','error');}};r.readAsText(f);e.target.value='';}
-function resetA(){if(!confirm('⚠️ DELETE ALL?'))return;if(!confirm('Sure?'))return;localStorage.removeItem('pt_v4');D={patients:[],visits:[],settings:{doctorName:'Dr. Physio',clinicName:'PhysioTracker',phone:'',address:'',gstNumber:'',invoicePrefix:'INV',invoiceCounter:1,invoiceFields:{showGST:false,showCondition:true,showAddress:true,showPhone:true,showNotes:true,showDueAmount:true},currency:'₹'}};sv();R();toast('Reset','info');}
+function impB(e){const f=e.target.files[0];if(!f)return;if(!confirm('Replace ALL data?'))return;const r=new FileReader();r.onload=function(ev){try{const i=JSON.parse(ev.target.result);if(!i.patients||!i.visits){toast('Invalid','error');return;}D=i;if(!D.settings)D.settings=defSet();sv();R();toast('Restored!','success');}catch(err){toast('Error','error');}};r.readAsText(f);e.target.value='';}
+function resetAll(){if(!confirm('⚠️ DELETE ALL?'))return;if(!confirm('Sure?'))return;localStorage.removeItem('pt_v5');D={patients:[],visits:[],settings:defSet()};sv();R();toast('Reset','info');}
 
-function handleSearch(q){if(!q.trim()){R();return;}q=q.toLowerCase();const f=AP().filter(p=>p.name.toLowerCase().includes(q)||(p.condition&&p.condition.toLowerCase().includes(q))||(p.phone&&p.phone.includes(q)));const c=document.getElementById('dashboardPatients');c.innerHTML='';if(!f.length){c.innerHTML='<div class="empty-state"><div class="empty-state-icon">🔍</div><h3>No results</h3></div>';return;}f.forEach(p=>{c.innerHTML+=pC(p);});}
+// ============ SEARCH ============
+function handleSearch(q){if(!q.trim()){R();return;}q=q.toLowerCase();const f=AP().filter(p=>p.name.toLowerCase().includes(q)||(p.condition&&p.condition.toLowerCase().includes(q))||(p.phone&&p.phone.includes(q)));const c=document.getElementById('dashP');c.innerHTML='';if(!f.length){c.innerHTML='<div class="empty-state"><div class="empty-state-icon">🔍</div><h3>No results</h3></div>';return;}f.forEach(p=>{c.innerHTML+=pCard(p);});}
 
-function switchNav(el,v){document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));if(el&&el.classList)el.classList.add('active');switchView(v);closeSidebar();}
-function switchView(v){document.querySelectorAll('.view-panel').forEach(p=>p.classList.remove('active'));const pn=document.getElementById('view-'+v);if(pn)pn.classList.add('active');const t={dashboard:['Dashboard','Overview'],patients:['Patients','All'],calendar:['Calendar','Schedule'],visits:['Visits','History'],dues:['Dues','Outstanding'],collected:['Collected','Received'],invoices:['Invoice','Generate'],archived:['Archived','Old'],settings:['Settings','Profile']};if(t[v]){document.getElementById('pageTitle').textContent=t[v][0];document.getElementById('pageSubtitle').textContent=t[v][1];}document.querySelectorAll('.nav-item').forEach(i=>{i.classList.remove('active');if(i.dataset.view===v)i.classList.add('active');});document.querySelector('.content-scroll').scrollTop=0;}
+// ============ NAVIGATION ============
+function goHome(){nav(document.querySelector('[data-view=dashboard]'),'dashboard');}
+function nav(el,v){document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));if(el&&el.classList)el.classList.add('active');switchView(v);closeSB();}
+function switchView(v){document.querySelectorAll('.view-panel').forEach(p=>p.classList.remove('active'));const pn=document.getElementById('view-'+v);if(pn)pn.classList.add('active');const t={dashboard:['Dashboard','Overview'],patients:['Patients','All'],calendar:['Calendar','Schedule'],visits:['Visits','History'],dues:['Dues','Outstanding'],collected:['Collected','Received'],invoices:['Invoice','Generate'],archived:['Archived','Old'],settings:['Settings','Profile']};if(t[v]){document.getElementById('pgT').textContent=t[v][0];document.getElementById('pgS').textContent=t[v][1];}document.querySelectorAll('.nav-item').forEach(i=>{i.classList.remove('active');if(i.dataset.view===v)i.classList.add('active');});document.querySelector('.content-scroll').scrollTop=0;}
 
-function openModal(id){document.getElementById('modal-'+id).classList.add('active');if(id==='addVisit'){document.getElementById('visitDate').value=fm(new Date());payS='paid';document.querySelectorAll('.payment-toggle-btn').forEach(b=>b.classList.remove('active'));document.querySelector('.paid-toggle').classList.add('active');document.getElementById('partialGroup').style.display='none';document.getElementById('visitNotes').value='';}}
+// ============ MODALS ============
+function openModal(id){document.getElementById('modal-'+id).classList.add('active');if(id==='addVisit'){document.getElementById('vD').value=fm(new Date());payS='paid';document.querySelectorAll('.payment-toggle-btn').forEach(b=>b.classList.remove('active'));document.querySelector('.paid-toggle').classList.add('active');document.getElementById('partG').style.display='none';document.getElementById('vNo').value='';}}
 function closeModal(id){document.getElementById('modal-'+id).classList.remove('active');}
 document.querySelectorAll('.modal-overlay').forEach(o=>{o.addEventListener('click',e=>{if(e.target===o)closeModal(o.id.replace('modal-',''));});});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.modal-overlay.active').forEach(m=>closeModal(m.id.replace('modal-','')));});
 
-function toggleSidebar(){const sb=document.getElementById('sidebar'),ov=document.getElementById('sidebarOverlay');if(sb.classList.contains('open')){closeSidebar();}else{sb.classList.add('open');ov.classList.add('active');}}
-function closeSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('sidebarOverlay').classList.remove('active');}
-document.getElementById('sidebarOverlay').addEventListener('click',closeSidebar);
+// ============ SIDEBAR ============
+function toggleSB(){document.getElementById('sidebar').classList.contains('open')?closeSB():openSB();}
+function openSB(){document.getElementById('sidebar').classList.add('open');document.getElementById('sidebarOverlay').classList.add('active');}
+function closeSB(){document.getElementById('sidebar').classList.remove('open');document.getElementById('sidebarOverlay').classList.remove('active');}
+document.getElementById('sidebarOverlay').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();closeSB();});
 
-let tX=0;
-document.addEventListener('touchstart',e=>{tX=e.touches[0].clientX;},{passive:true});
-document.addEventListener('touchend',e=>{const d=e.changedTouches[0].clientX-tX;if(d<-60&&document.getElementById('sidebar').classList.contains('open'))closeSidebar();if(d>60&&!document.getElementById('sidebar').classList.contains('open')&&tX<25)toggleSidebar();},{passive:true});
+// Swipe gestures
+let touchSX=0,touchSY=0;
+document.addEventListener('touchstart',function(e){touchSX=e.touches[0].clientX;touchSY=e.touches[0].clientY;},{passive:true});
+document.addEventListener('touchend',function(e){const dx=e.changedTouches[0].clientX-touchSX;const dy=Math.abs(e.changedTouches[0].clientY-touchSY);if(dy>80)return; // ignore vertical swipes
+if(dx<-60&&document.getElementById('sidebar').classList.contains('open'))closeSB();
+if(dx>60&&touchSX<30&&!document.getElementById('sidebar').classList.contains('open'))openSB();},{passive:true});
 
+// ============ TOAST ============
 function toast(msg,type='success'){const t=document.createElement('div');t.className='toast '+type;t.textContent=msg;document.body.appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity 0.3s';setTimeout(()=>t.remove(),300);},2500);}
 
-document.addEventListener('DOMContentLoaded',()=>{ld();R();});
+// ============ INIT ============
+document.addEventListener('DOMContentLoaded',function(){ld();R();});
 </script>
 </body>
 </html>
