@@ -435,10 +435,8 @@
 </head>
 <body>
 
-<!-- OVERLAY: only covers area OUTSIDE sidebar -->
 <div id="overlay"></div>
 
-<!-- SIDEBAR -->
 <aside id="sidebar">
     <div class="sb-head">
         <div class="sb-logo">🩺</div>
@@ -451,7 +449,6 @@
     </div>
 </aside>
 
-<!-- MAIN -->
 <div id="main">
     <div class="topbar">
         <button class="menu-btn" onclick="toggleSB()">☰</button>
@@ -465,7 +462,6 @@
     <div class="scroll-area"><div class="page-content" id="pageContent"></div></div>
 </div>
 
-<!-- MODALS -->
 <div class="mdl-bg" id="mdl-patient"><div class="modal-inner"><div class="mdl"><div class="mdl-handle"></div>
     <div class="mdl-hdr"><h2 class="mdl-ttl">👤 Add Patient</h2><button class="mdl-x" onclick="closeMdl('patient')">✕</button></div>
     <div class="mdl-body">
@@ -700,6 +696,10 @@ function togglePayment(vid){
     var v=D.visits.find(function(x){return x.id===vid;});
     if(v){v.status=v.status==='paid'?'due':'paid';v.partialAmount=0;saveData();renderPage();buildSidebar();if(detPid)showDetail(detPid);toast(v.status==='paid'?'Paid ✅':'Due','i');}
 }
+function calTogglePayment(vid){
+    var v=D.visits.find(function(x){return x.id===vid;});
+    if(v){if(v.status!=='paid'){v.status='paid';v.partialAmount=0;saveData();renderPage();buildSidebar();if(detPid)showDetail(detPid);toast('Paid ✅','i');}else{deleteVisit(vid);}}
+}
 function deleteVisit(vid){
     D.visits=D.visits.filter(function(v){return v.id!==vid;});
     saveData();renderPage();buildSidebar();if(detPid)showDetail(detPid);toast('Deleted','i');
@@ -896,7 +896,7 @@ function renderDetailBody(p){
         var cls='nv';
         if(dv2){if(dv2.status==='paid')cls='vp';else if(dv2.status==='partial')cls='vpa';else cls='vd';}
         if(isT)cls+=' td';
-        var clk=dv2?'onclick="togglePayment(\''+dv2.id+'\')"':'onclick="quickLog(\''+ds2+'\')"';
+        var clk=dv2?'onclick="calTogglePayment(\''+dv2.id+'\')"':'onclick="quickLog(\''+ds2+'\')"';
         h+='<div class="pcal-dy '+cls+'" '+clk+'>'+day+'</div>';
     }
     var tc3=sd2+dim2,rem3=tc3%7===0?0:7-(tc3%7);
